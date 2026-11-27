@@ -283,8 +283,9 @@ void CheckMetadata()
     testHost.Publish(initial);
     TestView view;
     initial.data->SetupView(TRUE, &view, nullptr, nullptr);
-    Check(first.metadataColumns == defaultMetadataColumns && view.columns.size() == 2 &&
-          view.columns[1].ID == COLUMN_ID_DATE, "compact default shows one date");
+    Check(first.metadataColumns == (ColumnSize | ColumnModified | ColumnParent) && view.columns.size() == 4 &&
+          view.columns[1].ID == COLUMN_ID_SIZE && view.columns[2].ID == COLUMN_ID_DATE &&
+          !strcmp(view.columns[3].Name, "Parent folder"), "default results include size, modification date and parent folder");
 
     SetVisibleMetadataColumns(allMetadataColumns);
     const SearchKey all = submitted;
@@ -505,7 +506,8 @@ void CheckAvailabilityTransitions()
 int main()
 {
     try {
-        shortenResultLabels = true;
+        Check(shortenResultLabels && AvailabilityChecksEnabled() && !hideUnavailableResults,
+              "fresh preferences shorten labels and mark unavailable items while keeping them visible");
         const std::wstring boundary = std::wstring(18, L'a') + L"\U0001F680" + std::wstring(30, L'b') + L".pdf";
         const std::wstring folder = LR"(C:\projects\)" + std::wstring(75, L'x') + LR"(\latest)";
         SearchReply compactReply{};

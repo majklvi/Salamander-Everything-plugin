@@ -79,7 +79,7 @@ SearchReply Receive(Bytes page, unsigned columns = allMetadataColumns, DWORD sor
 
 void Test()
 {
-    Check(RequestedFields(defaultMetadataColumns) == 0x45 && RequestedFields(0) == 5 &&
+    Check(RequestedFields(defaultMetadataColumns) == (identityFields | EVERYTHING_REQUEST_SIZE | EVERYTHING_REQUEST_DATE_MODIFIED) && RequestedFields(0) == 5 &&
           RequestedFields(allMetadataColumns) == allFields, "selected columns map to SDK flags");
     SearchKey key{1, 9}, changed = key;
     changed.metadataColumns = ColumnAttributes;

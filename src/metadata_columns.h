@@ -19,9 +19,10 @@ enum MetadataColumn : unsigned {
 inline constexpr unsigned allMetadataColumns = ColumnSize | ColumnModified | ColumnCreated |
     ColumnAccessed | ColumnAttributes | ColumnExtension | ColumnFileList | ColumnRunCount |
     ColumnDateRun | ColumnRecentlyChanged | ColumnParent;
-inline constexpr unsigned defaultMetadataColumns = ColumnModified;
+inline constexpr unsigned defaultMetadataColumns = ColumnSize | ColumnModified | ColumnParent;
 
-inline bool shortenResultLabels = false;
+inline constexpr bool defaultShortenResultLabels = true;
+inline bool shortenResultLabels = defaultShortenResultLabels;
 
 // Host UI thread only. Changing the mask also updates open searches.
 unsigned VisibleMetadataColumns();

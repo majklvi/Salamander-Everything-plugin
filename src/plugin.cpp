@@ -156,8 +156,9 @@ public:
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         DWORD shorten = 0;
-        shortenResultLabels = key && registry->GetValue(key, "ShortenResultLabels", REG_DWORD,
-                                                        &shorten, sizeof(shorten)) && shorten != 0;
+        const bool hasShortenSetting = key && registry->GetValue(key, "ShortenResultLabels", REG_DWORD,
+                                                                &shorten, sizeof(shorten));
+        shortenResultLabels = hasShortenSetting ? shorten != 0 : defaultShortenResultLabels;
         DWORD delay = defaultNetworkRetrySeconds;
         if (!key || !registry->GetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay)) ||
             delay > maxNetworkRetrySeconds) delay = defaultNetworkRetrySeconds;
