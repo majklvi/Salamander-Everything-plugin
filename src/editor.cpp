@@ -1,4 +1,5 @@
 #include "plugin.h"
+#include "subclass_dispatch.h"
 #include "filesystem.h"
 #include "header_order.h"
 #include "actions.h"
@@ -26,7 +27,6 @@ constexpr UINT activeBackCommand = 832;
 constexpr UINT changeFilterCommand = 779; // CM_CHANGEFILTER
 constexpr UINT syncMessage = WM_APP + 1;
 constexpr UINT_PTR pointerTimer = 1;
-constexpr UINT_PTR subclassId = 1;
 constexpr UINT placementFlags = SWP_NOZORDER | SWP_NOACTIVATE;
 
 struct Binding {
@@ -59,8 +59,8 @@ bool closing = false;
 bool waitingForPointer = false;
 CPluginFSInterfaceAbstract* focusRequest = nullptr;
 
-LRESULT CALLBACK HostProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
-LRESULT CALLBACK EditProc(HWND, UINT, WPARAM, LPARAM, UINT_PTR, DWORD_PTR);
+LRESULT CALLBACK HostProc(HWND, UINT, WPARAM, LPARAM, bool& forward, DWORD_PTR);
+LRESULT CALLBACK EditProc(HWND, UINT, WPARAM, LPARAM, bool& forward, DWORD_PTR);
 
 bool HasClass(HWND hwnd, const wchar_t* expected)
 {
@@ -192,9 +192,9 @@ void Unbind()
     Binding old = binding;
     binding = {};
     StopObservingResultHeader(old.header);
-    if (old.frame) RemoveWindowSubclass(old.frame, HostProc, subclassId);
-    if (old.panel) RemoveWindowSubclass(old.panel, HostProc, subclassId);
-    if (old.list && RemoveWindowSubclass(old.list, HostProc, subclassId) &&
+    if (old.frame) StopObservingWindow(old.frame, HostProc);
+    if (old.panel) StopObservingWindow(old.panel, HostProc);
+    if (old.list && StopObservingWindow(old.list, HostProc) &&
         GetParent(old.list) == old.panel) {
         PlaceWindow(old.list, old.natural, placementFlags);
     }
@@ -242,10 +242,10 @@ bool Bind(HWND frame, HWND list, CPluginFSInterfaceAbstract* fs)
         return false;
     SendMessageW(binding.edit, EM_SETCUEBANNER, TRUE, reinterpret_cast<LPARAM>(L"Search Everything"));
     SendMessageW(binding.edit, EM_SETSEL, GetQuery(fs).size(), GetQuery(fs).size());
-    return SetWindowSubclass(binding.edit, EditProc, subclassId, 0) &&
-           SetWindowSubclass(frame, HostProc, subclassId, 0) &&
-           SetWindowSubclass(binding.panel, HostProc, subclassId, 0) &&
-           SetWindowSubclass(list, HostProc, subclassId, 0);
+    return ObserveWindow(binding.edit, EditProc, 0) &&
+           ObserveWindow(frame, HostProc, 0) &&
+           ObserveWindow(binding.panel, HostProc, 0) &&
+           ObserveWindow(list, HostProc, 0);
 }
 
 void EnterResultsIfReady()
@@ -305,7 +305,7 @@ void RestoreDirectoryCommands(CGUIMenuPopupAbstract* popup)
 }
 
 HWND sortFrame = nullptr;
-LRESULT CALLBACK SortFrameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
+LRESULT CALLBACK SortFrameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR)
 {
     if (msg == WM_COMMAND && !lp && DirectoryCommandUnavailable(LOWORD(wp))) return 0;
     if (msg == WM_COMMAND && !lp && HandleNativeSortCommand(LOWORD(wp))) return 0;
@@ -328,10 +328,11 @@ LRESULT CALLBACK SortFrameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_P
         RestoreDirectoryCommands(reinterpret_cast<CGUIMenuPopupAbstract*>(wp));
     if (msg == WM_NCDESTROY) {
         RestoreDirectoryCommands(nullptr);
-        RemoveWindowSubclass(hwnd, SortFrameProc, subclassId);
+        StopObservingWindow(hwnd, SortFrameProc);
         sortFrame = nullptr;
     }
-    return DefSubclassProc(hwnd, msg, wp, lp);
+    forward = true;
+    return 0;
 }
 
 void Sync()
@@ -339,8 +340,8 @@ void Sync()
     HWND frame = gGeneral->GetMainWindowHWND();
     if (frame != sortFrame) {
         RestoreDirectoryCommands(nullptr);
-        if (sortFrame) RemoveWindowSubclass(sortFrame, SortFrameProc, subclassId);
-        sortFrame = frame && SetWindowSubclass(frame, SortFrameProc, subclassId, 0) ? frame : nullptr;
+        if (sortFrame) StopObservingWindow(sortFrame, SortFrameProc);
+        sortFrame = frame && ObserveWindow(frame, SortFrameProc, 0) ? frame : nullptr;
     }
     if (sortFrame) {
         ApplyNativeOrder(frame, PANEL_LEFT);
@@ -423,7 +424,7 @@ void Sync()
     if (IsWindowEnabled(frame) && IsWindowVisible(binding.popup)) CheckSearchPrerequisite(frame);
 }
 
-LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
+LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR)
 {
     if (hwnd == binding.frame && msg == WM_COMMAND && LOWORD(wp) == changeFilterCommand &&
         binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs)
@@ -436,7 +437,7 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
         return 0;
     }
     if (msg == WM_NCDESTROY) {
-        RemoveWindowSubclass(hwnd, HostProc, subclassId);
+        StopObservingWindow(hwnd, HostProc);
         if (hwnd == binding.list) binding.list = nullptr;
         if (hwnd == binding.panel) binding.panel = nullptr;
         if (hwnd == binding.frame) binding.frame = nullptr;
@@ -462,10 +463,11 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
             ShowWindow(binding.popup, SW_HIDE);
         ScheduleEditorSync();
     }
-    return DefSubclassProc(hwnd, msg, wp, lp);
+    forward = true;
+    return 0;
 }
 
-LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
+LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR)
 {
     if (msg == WM_HELP) {
         gGeneral->OpenHtmlHelp(hwnd, HHCDisplayContext, IDH_SEARCH, FALSE);
@@ -520,10 +522,11 @@ LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
         return 0;
     }
     if (msg == WM_NCDESTROY) {
-        RemoveWindowSubclass(hwnd, EditProc, subclassId);
+        StopObservingWindow(hwnd, EditProc);
         if (hwnd == binding.edit) binding.edit = nullptr;
     }
-    return DefSubclassProc(hwnd, msg, wp, lp);
+    forward = true;
+    return 0;
 }
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
@@ -656,7 +659,7 @@ void ShutdownEditor()
 {
     closing = true;
     RestoreDirectoryCommands(nullptr);
-    if (sortFrame) RemoveWindowSubclass(sortFrame, SortFrameProc, subclassId);
+    if (sortFrame) StopObservingWindow(sortFrame, SortFrameProc);
     sortFrame = nullptr;
     if (editKeyHook) UnhookWindowsHookEx(editKeyHook);
     editKeyHook = nullptr;

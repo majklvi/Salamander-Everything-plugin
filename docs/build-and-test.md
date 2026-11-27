@@ -172,3 +172,12 @@ The release build was tested in Detailed view with Computer Use. Everything 1.4.
 A separate instrumented build held the UNC worker immediately after the Windows call on that same 1.5 share. The first screenshot already showed eight rows. With the worker confirmed to be waiting, appending ` tar` narrowed the panel to `targeted-tags.mkv`. The screenshots arrived within 453 ms and 465 ms of sending the respective text, including automation and capture overhead. After the 12.1-second hold was released, the single current row gained its cross and the editor retained the full query. The release binary contains no test delay.
 
 The result identity regression also checks a real temporary file through present, missing, and present again across background probes. The SDK metadata regression and Release build passed.
+
+### Closing Samandarin with an Everything panel open
+
+Windows Application Error events recorded access violations in the unloaded EverythingSearch.spl. In the affected panel-sort build, the reported offset 0xe5d2 is the return address immediately after the host window subclass delegates to DefSubclassProc. Samandarin can unload the plugin inside that call while processing a window close. Removing the subclass during Release prevents future calls but leaves an existing return address on the stack. For unhandled messages the x64 dispatcher now unwinds the plugin frame and jumps directly to DefSubclassProc. Handled messages retain their result, including the synchronous header-sort and menu callbacks.
+
+On Open Samandarin 0.16 x64, launch an isolated portable profile that restores an Everything panel. Verify the SPL is loaded, send a normal main-window close, and collect the exit code. The original binary returned 1 on three runs. The fixed Release binary returned 0 on five consecutive runs. Two further interactive runs also returned 0:
+
+- Search for `exact:salamand.exe`, click Size, verify all seven results are sorted with their icons visible, then click the title-bar close button.
+- Search an unavailable UNC share, verify the folder and seven files show red crosses, press Down to focus the results and close with Alt+F4.

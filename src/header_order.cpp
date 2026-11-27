@@ -1,4 +1,5 @@
 #include "plugin.h"
+#include "subclass_dispatch.h"
 #include "filesystem.h"
 #include "result_listing.h"
 #include "header_order.h"
@@ -10,7 +11,6 @@
 #include <vector>
 
 namespace {
-constexpr UINT_PTR observerId = 1;
 using Rows = std::vector<const ResultRow*>;
 
 Rows VisibleFileOrder(int panel = PANEL_SOURCE)
@@ -69,7 +69,7 @@ DWORD CheckedNativeSort(int panel)
 
 HWND pressedHeader = nullptr;
 POINT pressPoint{};
-LRESULT CALLBACK HeaderProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data)
+LRESULT CALLBACK HeaderProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR data)
 {
     auto* fs = reinterpret_cast<CPluginFSInterfaceAbstract*>(data);
     if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK) {
@@ -80,13 +80,15 @@ LRESULT CALLBACK HeaderProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR,
     }
     if (msg == WM_NCDESTROY) {
         if (pressedHeader == hwnd) pressedHeader = nullptr;
-        RemoveWindowSubclass(hwnd, HeaderProc, observerId);
+        StopObservingWindow(hwnd, HeaderProc);
     }
     if (msg != WM_LBUTTONUP || pressedHeader != hwnd || GetCapture() != hwnd ||
         abs(GET_X_LPARAM(lp) - pressPoint.x) > GetSystemMetrics(SM_CXDRAG) ||
         abs(GET_Y_LPARAM(lp) - pressPoint.y) > GetSystemMetrics(SM_CYDRAG) ||
-        gGeneral->GetPanelPluginFS(PANEL_SOURCE) != fs || !IsListingCurrent(fs))
-        return DefSubclassProc(hwnd, msg, wp, lp);
+        gGeneral->GetPanelPluginFS(PANEL_SOURCE) != fs || !IsListingCurrent(fs)) {
+        forward = true;
+        return 0;
+    }
 
     auto* listing = gGeneral->GetPanelPluginData(PANEL_SOURCE);
     pressedHeader = nullptr;
@@ -165,13 +167,13 @@ void ApplyNativeOrder(HWND frame, int panel)
 void ObserveResultHeader(HWND header, CPluginFSInterfaceAbstract* fs)
 {
     if (header)
-        SetWindowSubclass(header, HeaderProc, observerId, reinterpret_cast<DWORD_PTR>(fs));
+        ObserveWindow(header, HeaderProc, reinterpret_cast<DWORD_PTR>(fs));
 }
 
 void StopObservingResultHeader(HWND header)
 {
     if (header)
-        RemoveWindowSubclass(header, HeaderProc, observerId);
+        StopObservingWindow(header, HeaderProc);
 }
 
 void ApplyRankedOrder(HWND frame, CPluginFSInterfaceAbstract* fs)
