@@ -38,6 +38,7 @@ BEGIN
     LTEXT           "Availability", -1, 8, 170, 44, 8, WS_GROUP
     CONTROL         "", IDC_AVAILABILITY_RULE, "Static", SS_ETCHEDHORZ | WS_GROUP, 54, 174, 172, 1
     AUTOCHECKBOX    "Check availability and mark unavailable items", IDC_CHECK_AVAILABILITY, 15, 181, 211, 10
+    AUTOCHECKBOX    "Hide unavailable items from results", IDC_HIDE_UNAVAILABLE, 23, 192, 203, 10
     LTEXT           "Network retry delay (seconds)", -1, 15, 207, 113, 10
     EDITTEXT        IDC_NETWORK_RETRY, 132, 204, 37, 14, ES_NUMBER | ES_AUTOHSCROLL
     PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 231, 50, 14

@@ -313,6 +313,7 @@ public:
     LabelLayout layout;
     bool filteredRanks = false;
     bool filtered = false;
+    unsigned hiddenMissing = 0;
     bool nativeOrderApplied = false;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
@@ -441,7 +442,7 @@ public:
                                    const CQuadWord&, char* buffer, DWORD*, int& hotCount) override {
         if (!page) return FALSE;
         hotCount = 0;
-        unsigned shown = static_cast<unsigned>(page->rows.size());
+        unsigned shown = static_cast<unsigned>(page->rows.size()) - hiddenMissing;
         if (filtered && gGeneral->GetPanelPluginData(panel) == this) {
             shown = 0;
             int index = 0;
@@ -462,6 +463,7 @@ public:
         }
         if (page->sort == mostOpenedSort) order = "most opened first";
         if (page->sort == leastOpenedSort) order = "least opened first";
+        if (hiddenMissing) order += " | " + std::to_string(hiddenMissing) + " unavailable hidden";
         if (!filterLabel.empty()) order += " | Filter: " + filterLabel;
         if (files || dirs)
             sprintf_s(buffer, 1000, "%u of %u results | %d selected | Everything page by %s",
@@ -683,7 +685,17 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
     }
     directory->SetValidData(valid);
     if (page) {
+        const bool hideMissing = hideUnavailableResults && AvailabilityChecksEnabled() && page->availability;
         for (const auto& item : page->rows) {
+            if (hideMissing) {
+                const auto state = page->availability->State(item.hit.path);
+                if (state == PathState::Missing) {
+                    ++listing->hiddenMissing;
+                    continue;
+                }
+                // Filtering also works in views that never request a plugin icon.
+                if (state == PathState::Pending) CheckResultPath(page->availability, item.hit.path);
+            }
             CFileData row{};
             // Ctrl+F12 compares the native Name and Ext. Keep rank decorations
             // out of both fields while a panel mask is active.

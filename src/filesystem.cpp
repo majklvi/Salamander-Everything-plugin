@@ -326,6 +326,8 @@ public:
             listingCurrent = false;
             return FALSE;
         }
+        allUnavailable = page && !page->rows.empty() && hideUnavailableResults &&
+                         !listing->GetFilesCount() && !listing->GetDirsCount();
         listingCurrent = !pending;
         ScheduleEditorSync();
         return TRUE;
@@ -342,6 +344,8 @@ public:
             message = "Everything is unavailable. Run Open search to retry.";
         else if (state == SearchState::UnsupportedSort)
             message = "Everything could not return this query order. Choose another column in Settings.";
+        else if (allUnavailable)
+            message = "All returned items are hidden because they are unavailable.";
         return size > 0 && SUCCEEDED(StringCchCopyA(buffer, size, message));
     }
     BOOL WINAPI TryCloseOrDetach(BOOL force, BOOL canDetach, BOOL& detach, int reason) override {
@@ -489,6 +493,7 @@ private:
     bool polling = false;
     bool detached = false;
     bool listingFailed = false;
+    bool allUnavailable = false;
     bool listingCurrent = false;
     bool focusFirstRank = false;
 };

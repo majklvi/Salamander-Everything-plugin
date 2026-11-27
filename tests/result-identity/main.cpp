@@ -444,6 +444,24 @@ void CheckAvailabilityTransitions()
     Check(ListResultPage(missingPage, &missingListing, missingListing.data) &&
           iconView.PaintIcon(missingListing.files.front()) == 2,
           "the missing file uses the crossed placeholder");
+    hideUnavailableResults = true;
+    SearchReply mixed{};
+    mixed.total = 4;
+    mixed.hits = {{L"same", L"C:\\online\\same", false}, {L"same", file, false},
+                  {L"folder", L"C:\\offline\\folder", true}, {L"denied", L"C:\\denied", true}};
+    page->paths[mixed.hits[0].path] = PathState::Present;
+    page->paths[mixed.hits[2].path] = PathState::Missing;
+    page->paths[mixed.hits[3].path] = PathState::Unknown;
+    auto mixedPage = std::make_shared<ResultPage>(std::move(mixed), page);
+    TestDirectory hidden;
+    Check(ListResultPage(mixedPage, &hidden, hidden.data) && hidden.files.size() == 1 &&
+          hidden.dirs.size() == 1 && FindResultHit(mixedPage.get(), &hidden.files[0])->path == L"C:\\online\\same" &&
+          FindResultHit(mixedPage.get(), &hidden.dirs[0])->path == L"C:\\denied",
+          "hide only confirmed missing files and folders by full path");
+    hideUnavailableResults = false;
+    TestDirectory shown;
+    Check(ListResultPage(mixedPage, &shown, shown.data) && shown.files.size() == 2 && shown.dirs.size() == 2,
+          "clearing the hide setting restores the same page");
     HANDLE restored = CreateFileW(file, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
     bool presentAgain = false;
     if (restored != INVALID_HANDLE_VALUE) {

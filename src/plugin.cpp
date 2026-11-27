@@ -162,6 +162,9 @@ public:
         if (!key || !registry->GetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay)) ||
             delay > maxNetworkRetrySeconds) delay = defaultNetworkRetrySeconds;
         SetNetworkRetrySeconds(delay);
+        DWORD hide = 0;
+        hideUnavailableResults = key && registry->GetValue(key, "HideUnavailableResults", REG_DWORD,
+                                                           &hide, sizeof(hide)) && hide != 0;
         DWORD checkPaths = 1;
         const bool hasCheckSetting = key && registry->GetValue(key, "CheckAvailability", REG_DWORD,
                                                               &checkPaths, sizeof(checkPaths));
@@ -201,6 +204,8 @@ public:
         registry->SetValue(key, "ShortenResultLabels", REG_DWORD, &shorten, sizeof(shorten));
         const DWORD delay = NetworkRetrySeconds();
         registry->SetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay));
+        const DWORD hide = hideUnavailableResults;
+        registry->SetValue(key, "HideUnavailableResults", REG_DWORD, &hide, sizeof(hide));
         const DWORD checkPaths = AvailabilityChecksEnabled();
         registry->SetValue(key, "CheckAvailability", REG_DWORD, &checkPaths, sizeof(checkPaths));
         registry->SetValue(key, "ResultLimit", REG_DWORD, &configuredResultLimit, sizeof(configuredResultLimit));

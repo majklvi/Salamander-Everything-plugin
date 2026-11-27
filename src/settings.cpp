@@ -232,6 +232,8 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
                          SWP_NOZORDER | SWP_NOACTIVATE);
         }
         CheckDlgButton(dialog, IDC_CHECK_AVAILABILITY, AvailabilityChecksEnabled() ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(dialog, IDC_HIDE_UNAVAILABLE, hideUnavailableResults ? BST_CHECKED : BST_UNCHECKED);
+        EnableWindow(GetDlgItem(dialog, IDC_HIDE_UNAVAILABLE), AvailabilityChecksEnabled());
         CheckDlgButton(dialog, IDC_SHORTEN_LABELS, shortenResultLabels ? BST_CHECKED : BST_UNCHECKED);
         SetDlgItemInt(dialog, IDC_NETWORK_RETRY, NetworkRetrySeconds(), FALSE);
         SetDlgItemInt(dialog, IDC_RESULT_LIMIT, configuredResultLimit, FALSE);
@@ -271,6 +273,11 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_SOURCE && HIWORD(wp) == CBN_SELCHANGE)
         SourceChanged(dialog, *state);
+    if (msg == WM_COMMAND && LOWORD(wp) == IDC_CHECK_AVAILABILITY) {
+        EnableWindow(GetDlgItem(dialog, IDC_HIDE_UNAVAILABLE),
+                     IsDlgButtonChecked(dialog, IDC_CHECK_AVAILABILITY) == BST_CHECKED);
+        return TRUE;
+    }
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_DEFAULT_LIMIT) {
         SetDlgItemInt(dialog, IDC_RESULT_LIMIT, defaultResultLimit, FALSE);
         return TRUE;
@@ -313,8 +320,10 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         const bool availabilityChanged = SetAvailabilityChecksEnabled(
             IsDlgButtonChecked(dialog, IDC_CHECK_AVAILABILITY) == BST_CHECKED);
         const bool shorten = IsDlgButtonChecked(dialog, IDC_SHORTEN_LABELS) == BST_CHECKED;
-        const bool changed = shorten != shortenResultLabels || availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
+        const bool hide = IsDlgButtonChecked(dialog, IDC_HIDE_UNAVAILABLE) == BST_CHECKED;
+        const bool changed = hide != hideUnavailableResults || shorten != shortenResultLabels || availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
         SetNetworkRetrySeconds(retry);
+        hideUnavailableResults = hide;
         shortenResultLabels = shorten;
         configuredResultLimit = limit;
         preferredSource = DialogSource(dialog);

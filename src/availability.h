@@ -22,6 +22,7 @@ inline constexpr unsigned defaultNetworkRetrySeconds = 5;
 inline constexpr unsigned maxNetworkRetrySeconds = 3600;
 unsigned NetworkRetrySeconds();
 void SetNetworkRetrySeconds(unsigned seconds);
+inline bool hideUnavailableResults = false; // Listing preference, accessed on the UI thread.
 bool AvailabilityChecksEnabled();
 bool SetAvailabilityChecksEnabled(bool enabled);
 void StopAvailabilityChecks();
