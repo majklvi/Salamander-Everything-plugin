@@ -1,6 +1,6 @@
 # Everything search in an Open Samandarin panel
 
-[Download the x64 release](https://github.com/majklvi/Salamander-Everything-plugin/releases/latest) · [Installation guide](docs/INSTALL.txt) · [Release checks and response times](docs/milestone-5.md)
+[Download the x64 release](https://github.com/majklvi/Salamander-Everything-plugin/releases/latest) · [Installation guide](docs/INSTALL.txt) · [FAQ](docs/faq.md) · [Release checks and response times](docs/milestone-5.md)
 
 Everything Search 0.5.1 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches by default from the selected Everything instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
 

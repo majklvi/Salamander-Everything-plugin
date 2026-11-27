@@ -2,7 +2,9 @@
 <html><head><title>Everything Search</title></head><body><ul>
 <li><object type="text/sitemap"><param name="Name" value="Advanced Properties"><param name="Local" value="advanced.htm"></object></li>
 <li><object type="text/sitemap"><param name="Name" value="Columns"><param name="Local" value="settings.htm"></object></li>
+<li><object type="text/sitemap"><param name="Name" value="Ctrl+Shift+E"><param name="Local" value="faq.htm"></object></li>
 <li><object type="text/sitemap"><param name="Name" value="Ctrl+F12"><param name="Local" value="filters.htm"></object></li>
+<li><object type="text/sitemap"><param name="Name" value="Encrypt &amp; Decrypt"><param name="Local" value="faq.htm"></object></li>
 <li><object type="text/sitemap"><param name="Name" value="File operations"><param name="Local" value="actions.htm"></object></li>
 <li><object type="text/sitemap"><param name="Name" value="Filters.csv"><param name="Local" value="filters.htm"></object></li>
 <li><object type="text/sitemap"><param name="Name" value="Keyboard shortcuts"><param name="Local" value="search.htm"></object></li>
