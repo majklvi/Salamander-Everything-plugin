@@ -8,6 +8,7 @@ TestHost testHost;
 SearchKey submitted{};
 std::wstring submittedText;
 SearchHit opened;
+bool simulateDiskNavigation = false;
 }
 
 // Compile the actual adapter against the simulated panel. This limits the
@@ -32,7 +33,18 @@ void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
 void SubmitSearch(SearchKey key, const std::wstring& text) { submitted = key; submittedText = text; }
 void CancelSearch(std::uint64_t) {}
-void OpenResult(int, const SearchHit& hit) { opened = hit; }
+void OpenResult(int, const SearchHit& hit) {
+    opened = hit;
+    if (simulateDiskNavigation && hit.directory) {
+        BOOL detach = FALSE;
+        auto* fs = testHost.active;
+        fs->TryCloseOrDetach(FALSE, TRUE, detach, FSTRYCLOSE_CHANGEPATH);
+        if (!detach) throw std::runtime_error("Folder navigation closed the search");
+        testHost.active = nullptr;
+        testHost.listing = nullptr;
+        fs->Event(FSE_DETACHED, PANEL_LEFT);
+    }
+}
 
 namespace {
 std::vector<SearchHit> operationHits;
@@ -159,12 +171,30 @@ void RunChecks()
 
     SetResultSort(fs, 1);
     const SearchHit oldDirectory{L"item", LR"(C:\Alpha\item)", true};
+    const SearchHit otherDirectory{L"item", LR"(C:\Beta\item)", true};
     const SearchHit replacement{oldDirectory.name, oldDirectory.path, false};
     SetQuery(fs, L"item");
-    DeliverSearchReply({submitted, SearchState::Ready, {oldDirectory}, 1});
+    DeliverSearchReply({submitted, SearchState::Ready, {oldDirectory, otherDirectory}, 2});
+    TestDirectory beforeEnter;
+    testHost.Publish(beforeEnter);
+    RestoreResultSelection();
+    testHost.caret = 1;
+    simulateDiskNavigation = true;
+    provider->ExecuteOnFS(PANEL_LEFT, fs, "everything", 0, beforeEnter.dirs[1], 1);
+    simulateDiskNavigation = false;
+    Check(!testHost.active && !RefreshOpenSearches(), "entering a folder suspends its search");
+    TestDirectory attaching;
+    testHost.active = fs;
+    testHost.Publish(attaching);
+    fs->Event(FSE_ATTACHED, PANEL_LEFT);
+    Check(submittedText == L"item", "history reattaches the original query");
+    DeliverSearchReply({submitted, SearchState::Ready, {oldDirectory, otherDirectory}, 2});
     TestDirectory asDirectory;
     testHost.Publish(asDirectory);
     RestoreResultSelection();
+    Check(testHost.caret == 1 && !asDirectory.dirs[1].Selected,
+          "Back focuses the exact folder among namesakes without marking it");
+    testHost.caret = 0;
     asDirectory.dirs[0].Selected = TRUE;
     SetQuery(fs, L"exact:item");
     DeliverSearchReply({submitted, SearchState::Ready, {replacement}, 1});

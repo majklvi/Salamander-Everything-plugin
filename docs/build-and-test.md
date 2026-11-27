@@ -215,3 +215,7 @@ In Open Samandarin 0.16 x64 with Everything 1.5, the live query `WidthCheck27` r
 ### Scrolling away from the focused result
 
 In Open Samandarin 0.16 x64, the query `ext:dll` returned 506 results. With Name sorted ascending and the first `7z.dll` focused, scrolling with the mouse wheel brought `api-ms-win-core-interlocked-l1-1-0.dll` to the top of the viewport. It stayed there after a pause and after Ctrl+R refreshed the listing. Pressing Down then moved focus to the second `7z.dll` near the start of the list, confirming that scrolling had preserved the original keyboard focus.
+
+### Returning from a result folder
+
+The result identity regression opens the second of two folders with the same name. Returning through panel history restores the query and focuses that folder by full path.

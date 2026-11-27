@@ -19,6 +19,12 @@
 namespace {
 
 unsigned visibleColumns = defaultMetadataColumns;
+// The host calls TryCloseOrDetach synchronously during folder navigation.
+struct FolderNavigation {
+    CPluginFSInterfaceAbstract* fs;
+    const SearchHit* hit;
+};
+FolderNavigation openingDirectory{};
 
 bool IsRoot(const char* path) {
     return path && (*path == '\0' || std::strcmp(path, "\\") == 0);
@@ -53,6 +59,7 @@ public:
     const std::wstring& Query() const { return query; }
     EverythingFilter filter;
     bool HasSearch() const { return !query.empty() || !filter.name.empty(); }
+    bool IsDetached() const { return detached; }
     std::wstring EffectiveQuery() const {
         if (filter.expression.empty()) return query.empty() && !filter.name.empty() ? L"*" : query;
         if (query.empty()) return filter.expression;
@@ -82,6 +89,7 @@ public:
     }
 
     void ChangeColumns(unsigned mask) {
+        if (detached) return; // Re-read current settings when history reattaches this search.
         key.metadataColumns = mask;
         key.source = preferredSource;
         key.limit = configuredResultLimit;
@@ -264,7 +272,9 @@ public:
         return currentName == name && path && (filter.name.empty() ? IsRoot(path) : FilterPath(filter) == path);
     }
     BOOL WINAPI IsOurPath(int currentName, int name, const char*) override {
-        return currentName == name;
+        // History reattaches its exact FS by identity. A fresh search should
+        // never borrow another tab's detached query just because both use root.
+        return !detached && currentName == name;
     }
     BOOL WINAPI ChangePath(int currentName, char*, int name, const char* path,
                            char* cutName, BOOL* wasCut, BOOL, int mode) override {
@@ -334,11 +344,29 @@ public:
             message = "Everything could not return this query order. Choose another column in Settings.";
         return size > 0 && SUCCEEDED(StringCchCopyA(buffer, size, message));
     }
-    BOOL WINAPI TryCloseOrDetach(BOOL, BOOL, BOOL& detach, int) override {
-        detach = FALSE;
+    BOOL WINAPI TryCloseOrDetach(BOOL force, BOOL canDetach, BOOL& detach, int reason) override {
+        detach = !force && canDetach && reason == FSTRYCLOSE_CHANGEPATH && openingDirectory.fs == this;
+        if (detach) {
+            saved.reset();
+            RememberSelection();
+            if (!saved) saved.emplace();
+            saved->caret = openingDirectory.hit->path;
+            saved->caretIsDirectory = true;
+            focusFirstRank = false;
+        }
         return TRUE;
     }
     void WINAPI Event(int event, DWORD) override {
+        if (event == FSE_DETACHED) {
+            detached = true;
+            CancelSearch(key.instance);
+            pending = polling = listingCurrent = false;
+            page.reset();
+            availability.reset();
+        } else if (event == FSE_ATTACHED) {
+            detached = false;
+            ChangeColumns(visibleColumns);
+        }
         if (event == FSE_OPENED || event == FSE_PATHCHANGED || event == FSE_ATTACHED ||
             event == FSE_DETACHED || event == FSE_CLOSEORDETACHCANCELED)
             ScheduleEditorSync();
@@ -459,6 +487,7 @@ private:
     std::optional<PanelSelection> saved;
     bool pending = false;
     bool polling = false;
+    bool detached = false;
     bool listingFailed = false;
     bool listingCurrent = false;
     bool focusFirstRank = false;
@@ -495,8 +524,11 @@ public:
     void WINAPI ExecuteOnFS(int panel, CPluginFSInterfaceAbstract* fs, const char*, int,
                             CFileData& file, int isDir) override {
         SearchHit hit;
-        if (isDir != 2 && GetResultHit(fs, &file, hit))
+        if (isDir != 2 && GetResultHit(fs, &file, hit)) {
+            const auto previous = std::exchange(openingDirectory, FolderNavigation{hit.directory ? fs : nullptr, &hit});
             OpenResult(gGeneral->GetPanelPluginFS(PANEL_SOURCE) == fs ? PANEL_SOURCE : panel, hit);
+            openingDirectory = previous;
+        }
     }
     BOOL WINAPI DisconnectFS(HWND parent, BOOL inPanel, int panel, CPluginFSInterfaceAbstract* fs,
                              const char*, int) override {
@@ -538,7 +570,7 @@ void RefreshAvailabilityIcons() {
 bool RefreshOpenSearches() {
     bool active = false;
     for (auto& fs : instances) {
-        if (fs.HasSearch()) {
+        if (!fs.IsDetached() && fs.HasSearch()) {
             active = true;
             fs.Poll();
         }
