@@ -223,3 +223,7 @@ In Open Samandarin 0.16 x64, the query `ext:dll` returned 506 results. With Name
 ### Returning from a result folder
 
 The result identity regression opens the second of two folders with the same name. Returning through panel history restores the query and focuses that folder by full path.
+
+### Result limit controls
+
+In Settings, Default puts 200 back in the Maximum results field. OK applies the value to open searches. The hints link explains when to use a larger limit or request all matches. The bottom row uses four buttons of equal width.

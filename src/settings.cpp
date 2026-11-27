@@ -212,6 +212,16 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         SetWindowLongPtrW(dialog, DWLP_USER, lp);
         UpdateTheme(dialog, state.dark);
         gGUI->ArrangeHorizontalLines(dialog);
+        if (auto* hint = gGUI->AttachHyperLink(dialog, IDC_LIMIT_HINT, STF_DOTUNDERLINE)) {
+            hint->SetActionShowHint(
+                "The default of 200 keeps searches fast. If more items match,\n"
+                "the panel shows the first 200 in the current search order.\n\n"
+                "A limit of 5,000 worked reliably in testing. Choose a limit\n"
+                "that suits your searches and your computer.\n\n"
+                "Enter 0 to show all matches. If your index contains millions\n"
+                "of items, a broad search can use more memory and make the\n"
+                "panel slow to respond while it loads the results.");
+        }
         for (int id : {IDC_COLUMNS_RULE, IDC_SEARCH_RULE, IDC_AVAILABILITY_RULE}) {
             const HWND line = GetDlgItem(dialog, id);
             const auto style = GetWindowLongPtrW(line, GWL_STYLE);
@@ -261,6 +271,10 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
     }
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_SOURCE && HIWORD(wp) == CBN_SELCHANGE)
         SourceChanged(dialog, *state);
+    if (msg == WM_COMMAND && LOWORD(wp) == IDC_DEFAULT_LIMIT) {
+        SetDlgItemInt(dialog, IDC_RESULT_LIMIT, defaultResultLimit, FALSE);
+        return TRUE;
+    }
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_ADVANCED) {
         const auto row = SendDlgItemMessageW(dialog, IDC_ORDER, CB_GETCURSEL, 0, 0);
         const bool descending = IsDlgButtonChecked(dialog, IDC_DESCENDING) == BST_CHECKED;
