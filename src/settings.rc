@@ -1,7 +1,7 @@
 #include <windows.h>
 #include "settings_resource.h"
 
-IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 179
+IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 197
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Everything Search Settings"
 FONT 9, "Segoe UI"
@@ -23,10 +23,13 @@ BEGIN
     LTEXT           "Current search &order", IDC_ORDER_LABEL, 8, 123, 77, 12
     COMBOBOX        IDC_ORDER, 86, 120, 140, 165, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     AUTOCHECKBOX    "&Descending", IDC_DESCENDING, 86, 138, 128, 11
-    PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 157, 65, 15
-    PUSHBUTTON      "&Help", IDHELP, 77, 157, 39, 15
-    DEFPUSHBUTTON   "OK", IDOK, 120, 157, 50, 15
-    PUSHBUTTON      "Cancel", IDCANCEL, 176, 157, 50, 15
+    LTEXT           "Maximum res&ults", -1, 8, 157, 77, 11
+    EDITTEXT        IDC_RESULT_LIMIT, 86, 154, 60, 14, ES_NUMBER | ES_AUTOHSCROLL
+    LTEXT           "0 = unlimited", -1, 150, 157, 76, 11
+    PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 175, 65, 15
+    PUSHBUTTON      "&Help", IDHELP, 77, 175, 39, 15
+    DEFPUSHBUTTON   "OK", IDOK, 120, 175, 50, 15
+    PUSHBUTTON      "Cancel", IDCANCEL, 176, 175, 50, 15
 END
 
 IDD_ADVANCED DIALOGEX 0, 0, 249, 213

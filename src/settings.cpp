@@ -209,6 +209,7 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         auto* fs = state.fs;
         SetWindowLongPtrW(dialog, DWLP_USER, lp);
         UpdateTheme(dialog, state.dark);
+        SetDlgItemInt(dialog, IDC_RESULT_LIMIT, configuredResultLimit, FALSE);
         const auto mask = VisibleMetadataColumns();
         for (const auto& check : checks)
             CheckDlgButton(dialog, check.control, mask & check.flag ? BST_CHECKED : BST_UNCHECKED);
@@ -247,13 +248,21 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         return TRUE;
     }
     if (msg == WM_COMMAND && LOWORD(wp) == IDOK) {
+        BOOL valid = FALSE;
+        const UINT limit = GetDlgItemInt(dialog, IDC_RESULT_LIMIT, &valid, FALSE);
+        if (!valid || limit > INT_MAX || GetWindowTextLengthW(GetDlgItem(dialog, IDC_RESULT_LIMIT)) > 10) {
+            MessageBoxW(dialog, L"Enter a whole number from 0 to 2147483647.", L"Maximum results", MB_OK);
+            SetFocus(GetDlgItem(dialog, IDC_RESULT_LIMIT));
+            return TRUE;
+        }
         unsigned mask = 0;
         for (const auto& check : checks)
             if (IsDlgButtonChecked(dialog, check.control) == BST_CHECKED) mask |= check.flag;
         std::vector<Property> selected;
         for (auto id : state->selected)
             if (auto* p = PropertyForOrder(id)) selected.push_back(*p);
-        const bool changed = preferredSource != DialogSource(dialog) || visibleProperties != selected;
+        const bool changed = preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
+        configuredResultLimit = limit;
         preferredSource = DialogSource(dialog);
         visibleProperties = std::move(selected);
         if (changed && mask == VisibleMetadataColumns()) RefreshSourceSettings();

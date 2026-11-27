@@ -18,12 +18,15 @@ inline constexpr bool UsesRankedNames(std::uint32_t sort) {
     return sort != 1; // Preserve the SDK sequence when the host would sort by Name.
 }
 
+inline constexpr unsigned defaultResultLimit = 200;
+inline unsigned configuredResultLimit = defaultResultLimit; // UI thread, zero requests all matches.
+
 struct SearchKey {
     std::uint64_t instance;
     std::uint64_t generation;
     std::uint32_t sort = 1; // Everything name ascending
     std::uint32_t offset = 0;
-    std::uint32_t limit = 200;
+    std::uint32_t limit = defaultResultLimit;
     unsigned metadataColumns = defaultMetadataColumns;
 
     Source source = Source::Automatic;

@@ -218,6 +218,14 @@ void RunChecks()
     SetQuery(fs, L"next");
     SetEverythingFilter(fs, {});
     Check(submittedText == L"next", "switching back to native filters restores the typed query");
+    const auto oldLimit = submitted;
+    configuredResultLimit = 0;
+    RefreshSourceSettings();
+    Check(submitted.limit == 0 && submitted.generation > oldLimit.generation,
+          "removing the cap resubmits an open search");
+    DeliverSearchReply({oldLimit, SearchState::Ready, {alpha}, 1});
+    Check(!IsListingCurrent(fs), "changing the cap rejects the old page");
+    configuredResultLimit = defaultResultLimit;
     provider->CloseFS(fs);
     testHost.active = nullptr;
     testHost.listing = nullptr;

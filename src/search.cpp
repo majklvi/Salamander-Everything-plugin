@@ -135,7 +135,7 @@ bool ValidPage(const COPYDATASTRUCT& data, const SearchKey& key)
     const DWORD flags = list->request_flags;
     DWORD knownFlags = 0;
     for (const auto& field : wireFields) knownFlags |= field.flag;
-    if (list->numitems > key.limit || (flags & identityFields) != identityFields || (flags & ~knownFlags) ||
+    if ((key.limit && list->numitems > key.limit) || (flags & identityFields) != identityFields || (flags & ~knownFlags) ||
         list->offset != key.offset ||
         (list->numitems && (list->offset > list->totitems || list->numitems > list->totitems - list->offset)) ||
         list->numitems > (size - sizeof(*list)) / sizeof(EVERYTHING_IPC_ITEM2))
@@ -281,7 +281,7 @@ struct Receiver {
         Everything_SetReplyID(serial);
         Everything_SetSort(request.key.sort);
         Everything_SetOffset(request.key.offset);
-        Everything_SetMax(request.key.limit);
+        Everything_SetMax(request.key.limit ? request.key.limit : MAXDWORD);
         Everything_SetRequestFlags(RequestedFields(request.key.metadataColumns));
         expires = GetTickCount64() + replyTimeout;
         // Windows may dispatch a synchronous reply inside the submission.
@@ -297,7 +297,14 @@ LRESULT CALLBACK IpcProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
     } else if (msg == WM_COPYDATA) {
         auto* receiver = reinterpret_cast<Receiver*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
-        if (receiver) return receiver->Reply(msg, wp, lp);
+        if (receiver) {
+            try {
+                return receiver->Reply(msg, wp, lp);
+            } catch (const std::bad_alloc&) {
+                if (receiver->active) receiver->Finish(SearchState::Unavailable);
+                return FALSE;
+            }
+        }
     }
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
@@ -352,9 +359,13 @@ unsigned __stdcall Run(void*)
             }
             if (request) {
                 const auto sources = DiscoverSources();
-                if (sources.UseModern(request->key.source))
-                    Publish(QueryModern(sources, request->key, request->query, stop));
-                else if (sources.stable && !request->key.sortProperty.empty())
+                if (sources.UseModern(request->key.source)) {
+                    try {
+                        Publish(QueryModern(sources, request->key, request->query, stop));
+                    } catch (const std::bad_alloc&) {
+                        Publish({request->key, SearchState::Unavailable, {}, 0});
+                    }
+                } else if (sources.stable && !request->key.sortProperty.empty())
                     Publish({request->key, SearchState::UnsupportedSort, {}, 0});
                 else {
                     Everything_SetTargetWindow(sources.stable);

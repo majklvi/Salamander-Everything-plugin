@@ -42,6 +42,7 @@ public:
         key.instance = instance;
         key.metadataColumns = visibleColumns;
         key.source = preferredSource;
+        key.limit = configuredResultLimit;
         key.properties = visibleProperties;
     }
 
@@ -80,6 +81,7 @@ public:
     void ChangeColumns(unsigned mask) {
         key.metadataColumns = mask;
         key.source = preferredSource;
+        key.limit = configuredResultLimit;
         key.properties = visibleProperties;
         if (key.source == Source::Stable14 && !key.sortProperty.empty()) {
             key.sort = 1;

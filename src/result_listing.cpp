@@ -353,11 +353,12 @@ ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key
 {
     properties = std::move(reply.properties);
     rows.reserve(reply.hits.size());
+    const int rankWidth = std::max(3, static_cast<int>(std::to_string(reply.key.offset + reply.hits.size()).size()));
     for (auto& hit : reply.hits) {
         std::string prefix;
         if (UsesRankedNames(sort)) {
             char rank[24];
-            sprintf_s(rank, "%03llu  ", static_cast<unsigned long long>(reply.key.offset) + rows.size() + 1);
+            sprintf_s(rank, "%0*llu  ", rankWidth, static_cast<unsigned long long>(reply.key.offset) + rows.size() + 1);
             prefix = rank;
         }
         auto name = prefix + DisplayText(hit.name, MAX_PATH - 5 - prefix.size());
@@ -372,9 +373,14 @@ ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key
 const SearchHit* FindResultHit(const ResultPage* page, const CFileData* file)
 {
     if (!page || !file) return nullptr;
-    for (const auto& row : page->rows)
-        if (reinterpret_cast<DWORD_PTR>(&row) == file->PluginData) return &row.hit;
-    return nullptr;
+    // PluginData identifies an element of this immutable, contiguous page.
+    // Validate its range and alignment before looking up the original path.
+    const auto base = reinterpret_cast<DWORD_PTR>(page->rows.data());
+    if (file->PluginData < base) return nullptr;
+    const auto offset = file->PluginData - base;
+    const auto index = offset / sizeof(ResultRow);
+    if (offset % sizeof(ResultRow) || index >= page->rows.size()) return nullptr;
+    return &page->rows[index].hit;
 }
 
 const ResultPage* GetListingPage(CPluginDataInterfaceAbstract* data)

@@ -64,9 +64,21 @@ Two checks used a separate instrumented build of the same plugin in the isolated
 
 ## Native panel filter
 
-Ctrl+F12 opens Samandarin's Filter dialog from the query field or the results. The mask applies to the results returned by Everything (up to 200). To restrict the entire index before Everything selects the page, include the condition in the query field (for example, `ext:pdf`). With a panel mask active, the information line reports the visible count against the total returned by Everything.
+Ctrl+F12 opens Samandarin's Filter dialog from the query field or the results. The mask applies to the results returned by Everything (up to 200 by default, configurable under **Maximum results**). To restrict the entire index before Everything selects the page, include the condition in the query field (for example, `ext:pdf`). With a panel mask active, the information line reports the visible count against the total returned by Everything.
 
 In Open Samandarin 0.16 x64, a file-only query for the test installation directory returned 47 files. Opening Ctrl+F12 while the query field had focus and applying `*.exe;vcruntime*` left exactly `salamand.exe` and `vcruntime140.dll`. The information line showed **2 of 47**. Clicking **Size** placed the 124,544-byte DLL first in ascending order and the 3,420,160-byte executable first in descending order. Both rows kept their original filenames throughout.
+
+## Configurable result limit
+
+With a running Everything 1.5 instance, a test using the plugin search worker queried `file: ext:dll` and found 506 matches. Maximum results values of 1, 200, 500 and 0 returned 1, 200, 500 and 506 rows respectively. The SDK v2 reply regression used a 1,250-row fixture to check both bounded and unlimited requests. These checks measured result counts. Panel rendering time was not benchmarked.
+
+### Changing the limit during an open search
+
+In Open Samandarin 0.16 x64 with Everything 1.5, the query `file: ext:dll` stayed open throughout the test. Changing **Maximum results** from 200 to 500 and then to 0 refreshed the panel after each confirmation. With the panel filter disabled, Ctrl+A selected 200, 500 and 506 rows respectively. The total stayed at 506.
+
+### Filtering beyond the first 500
+
+Everything returned `wuceffectsi.dll` at position 506 in ascending name order. At a limit of 500, the exact Ctrl+F12 mask `wuceffectsi.dll` showed zero rows. With that mask still active, changing the limit to 0 immediately displayed the file and the status line read **1 of 506 results**. Disabling the mask exposed all 506 rows. Reapplying it showed the same single file.
 
 ## Search field while Settings is open
 

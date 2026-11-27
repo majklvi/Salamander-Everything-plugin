@@ -58,7 +58,7 @@ Bytes Page(DWORD flags, const std::vector<Bytes>& rows)
     return page;
 }
 
-SearchReply Receive(Bytes page, unsigned columns = allMetadataColumns, DWORD sort = EVERYTHING_SORT_NAME_ASCENDING)
+SearchReply Receive(Bytes page, unsigned columns = allMetadataColumns, DWORD sort = EVERYTHING_SORT_NAME_ASCENDING, unsigned limit = defaultResultLimit)
 {
     PrepareUnicodeQuery2(replyID);
     COPYDATASTRUCT data{replyID, static_cast<DWORD>(page.size()), page.data()};
@@ -66,6 +66,7 @@ SearchReply Receive(Bytes page, unsigned columns = allMetadataColumns, DWORD sor
     receiver.serial = replyID;
     SearchKey key{1, 9};
     key.sort = sort;
+    key.limit = limit;
     key.metadataColumns = columns;
     receiver.active = key;
     receiver.Reply(WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&data));
@@ -120,6 +121,13 @@ void Test()
         auto reply = Receive(Page(identityFields, rows));
         Check(reply.state == SearchState::Ready && reply.hits.size() == rows.size() &&
               (rows.empty() || !reply.hits[0].size), "identity-only result page accepted");
+    }
+    const auto largePage = Page(identityFields, std::vector<Bytes>(1250, identity));
+    for (unsigned limit : {0u, 1250u, 1249u, defaultResultLimit}) {
+        const auto reply = Receive(largePage, 0, EVERYTHING_SORT_NAME_ASCENDING, limit);
+        const bool fits = !limit || limit >= 1250;
+        Check(fits ? reply.state == SearchState::Ready && reply.hits.size() == 1250
+                   : reply.state == SearchState::Unavailable, "configured and unlimited page sizes");
     }
     Bytes partial = identity;
     Append(partial, UINT64_C(0));

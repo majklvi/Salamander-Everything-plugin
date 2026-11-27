@@ -113,6 +113,9 @@ public:
     CPluginInterfaceForThumbLoaderAbstract* WINAPI GetInterfaceForThumbLoader() override { return nullptr; }
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
+        DWORD limit = defaultResultLimit;
+        if (key && registry->GetValue(key, "ResultLimit", REG_DWORD, &limit, sizeof(limit)) && limit <= INT_MAX)
+            configuredResultLimit = limit;
         DWORD source = 0;
         if (key && registry->GetValue(key, "EverythingSource", REG_DWORD, &source, sizeof(source)) &&
             source <= static_cast<DWORD>(Source::Modern15))
@@ -141,6 +144,7 @@ public:
     void WINAPI SaveConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         const DWORD mask = VisibleMetadataColumns();
         if (!key) return;
+        registry->SetValue(key, "ResultLimit", REG_DWORD, &configuredResultLimit, sizeof(configuredResultLimit));
         const auto source = static_cast<DWORD>(preferredSource);
         registry->SetValue(key, "EverythingSource", REG_DWORD, &source, sizeof(source));
         std::wstring saved;

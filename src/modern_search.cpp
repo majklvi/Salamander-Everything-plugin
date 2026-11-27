@@ -163,8 +163,9 @@ SearchReply QueryModern(const Sources& sources, const SearchKey& key, const std:
         !Everything3_SetSearchTextW(s, query.c_str())) return reply;
     // SDK 3.0.1.12 can return FALSE after successfully setting the viewport.
     Everything3_SetSearchViewportOffset(s, key.offset);
-    Everything3_SetSearchViewportCount(s, key.limit);
-    if (Everything3_GetSearchViewportCount(s) != key.limit || Everything3_GetSearchViewportOffset(s) != key.offset) return reply;
+    const size_t viewport = key.limit ? key.limit : SIZE_MAX;
+    Everything3_SetSearchViewportCount(s, viewport);
+    if (Everything3_GetSearchViewportCount(s) != viewport || Everything3_GetSearchViewportOffset(s) != key.offset) return reply;
     std::unique_ptr<EVERYTHING3_RESULT_LIST, decltype(&Everything3_DestroyResultList)>
         list(Everything3_Search(client.get(), s), Everything3_DestroyResultList);
     auto* r = list.get();
@@ -176,7 +177,8 @@ SearchReply QueryModern(const Sources& sources, const SearchKey& key, const std:
     }
     reply.total = static_cast<unsigned>(std::min<size_t>(Everything3_GetResultListCount(r), UINT_MAX));
     const auto count = Everything3_GetResultListViewportCount(r);
-    if (count > key.limit) return reply;
+    if (count > viewport || count > reply.total) return reply;
+    reply.hits.reserve(count);
     for (size_t i = 0; i < count; ++i) {
         SearchHit h{};
         h.source = Source::Modern15;
