@@ -4,24 +4,24 @@
 #include <atomic>
 #include <memory>
 #include <string>
-#include <vector>
+#include <mutex>
+#include <unordered_map>
 
-enum class PathState : unsigned char { Unknown, Present, Missing };
-
-struct AvailabilityEntry {
-    std::atomic<PathState> state{PathState::Unknown};
-    std::atomic<ULONGLONG> nextCheck{0};
-};
+enum class PathState : unsigned char { Pending, Unknown, Present, Missing };
 
 struct AvailabilityPage {
-    explicit AvailabilityPage(size_t count) : entries(std::make_unique<AvailabilityEntry[]>(count)) {}
-    std::unique_ptr<AvailabilityEntry[]> entries;
-    std::vector<size_t> observed; // Only touched by the UI thread.
+    std::mutex mutex;
+    std::unordered_map<std::wstring, PathState> paths;
+    PathState State(const std::wstring& path);
     std::atomic<bool> changed{false};
 };
 
-// Called when a placeholder is painted, or a previously painted row needs rechecking.
-void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, size_t index, const std::wstring& path);
+// The first paint queues the path once for this query.
+void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, const std::wstring& path);
+inline constexpr unsigned defaultNetworkRetrySeconds = 5;
+inline constexpr unsigned maxNetworkRetrySeconds = 3600;
+unsigned NetworkRetrySeconds();
+void SetNetworkRetrySeconds(unsigned seconds);
 bool AvailabilityChecksEnabled();
 bool SetAvailabilityChecksEnabled(bool enabled);
 void StopAvailabilityChecks();

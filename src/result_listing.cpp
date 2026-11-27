@@ -136,7 +136,7 @@ int WINAPI PlaceholderIndex()
 {
     const auto* row = ListingRow(transferFile ? *transferFile : nullptr);
     if (!row) return transferIsDir && *transferIsDir ? 1 : 0;
-    CheckResultPath(row->owner->availability, row->index, row->hit.path);
+    CheckResultPath(row->owner->availability, row->hit.path);
     return row->hit.directory ? 1 : 0;
 }
 
@@ -316,7 +316,7 @@ public:
     BOOL WINAPI HasSimplePluginIcon(CFileData& file, BOOL) override {
         const auto* row = ListingRow(&file);
         return !row || (row->owner->availability &&
-                        row->owner->availability->entries[row->index].state != PathState::Present);
+                        row->owner->availability->State(row->hit.path) != PathState::Present);
     }
     HICON WINAPI GetPluginIcon(const CFileData* file, int size, BOOL& destroy) override {
         destroy = FALSE;
@@ -403,7 +403,8 @@ unsigned EndHeaderSortObservation()
     return observedColumnSort ? observedColumnSort : transferColumn ? HeaderColumnSort(*transferColumn) : 0;
 }
 
-ResultPage::ResultPage(SearchReply&& reply) : availability(AvailabilityChecksEnabled() ? std::make_shared<AvailabilityPage>(reply.hits.size()) : nullptr), total(reply.total), sort(reply.key.sort)
+ResultPage::ResultPage(SearchReply&& reply, std::shared_ptr<AvailabilityPage> checks)
+    : availability(std::move(checks)), total(reply.total), sort(reply.key.sort)
 {
     properties = std::move(reply.properties);
     rows.reserve(reply.hits.size());
@@ -419,7 +420,7 @@ ResultPage::ResultPage(SearchReply&& reply) : availability(AvailabilityChecksEna
         if (UsesRankedNames(sort) && hit.directory) name += "\\";
         auto parent = DisplayText(ParentOf(hit), TRANSFER_BUFFER_MAX - 1);
         ResultRow row{std::move(hit), std::move(name), std::move(parent),
-                      static_cast<unsigned>(reply.key.offset + rows.size() + 1), this, rows.size()};
+                      static_cast<unsigned>(reply.key.offset + rows.size() + 1), this};
         rows.push_back(std::move(row));
     }
 }
@@ -484,8 +485,8 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
             // Keep indexed attributes in the display column so enabling it
             // preserves the membership of the Everything result page.
             row.Attr = item.hit.directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-            row.IconOverlayIndex = page->availability && page->availability->entries[item.index].state == PathState::Missing
-                                   ? 0 : ICONOVERLAYINDEX_NOTUSED;
+            const auto state = page->availability ? page->availability->State(item.hit.path) : PathState::Unknown;
+            row.IconOverlayIndex = state == PathState::Missing ? 0 : state == PathState::Pending ? 1 : ICONOVERLAYINDEX_NOTUSED;
             row.PluginData = reinterpret_cast<DWORD_PTR>(&item);
             // A single group preserves Everything's ranking across folders and files.
             // Open and Reveal use the original type and full path from the snapshot.

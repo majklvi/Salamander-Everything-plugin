@@ -121,13 +121,16 @@ public:
                     "Everything Search", MB_OK | MB_ICONINFORMATION);
     }
     void WINAPI Connect(HWND, CSalamanderConnectAbstract* host) override {
-        HICON cross[3]{};
-        for (int i = 0; i < 3; ++i) {
-            const int size = 16 * (i + 1);
-            cross[i] = static_cast<HICON>(LoadImageW(gInstance, MAKEINTRESOURCEW(IDI_UNAVAILABLE),
-                                                     IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
+        HICON overlays[6]{};
+        constexpr int resources[] = {IDI_UNAVAILABLE, IDI_CHECKING};
+        for (int badge = 0; badge < 2; ++badge) {
+            for (int i = 0; i < 3; ++i) {
+                const int size = 16 * (i + 1);
+                overlays[3 * badge + i] = static_cast<HICON>(LoadImageW(gInstance,
+                    MAKEINTRESOURCEW(resources[badge]), IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
+            }
         }
-        gGeneral->SetPluginIconOverlays(1, cross);
+        gGeneral->SetPluginIconOverlays(2, overlays);
         RegisterMenuIcon(host);
         host->AddMenuItem(-1, "&Open search", SALHOTKEY('E', HOTKEYF_CONTROL | HOTKEYF_SHIFT), openSearch, FALSE,
                           MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
@@ -162,6 +165,10 @@ public:
     CPluginInterfaceForThumbLoaderAbstract* WINAPI GetInterfaceForThumbLoader() override { return nullptr; }
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
+        DWORD delay = defaultNetworkRetrySeconds;
+        if (!key || !registry->GetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay)) ||
+            delay > maxNetworkRetrySeconds) delay = defaultNetworkRetrySeconds;
+        SetNetworkRetrySeconds(delay);
         DWORD checkPaths = 1;
         const bool hasCheckSetting = key && registry->GetValue(key, "CheckAvailability", REG_DWORD,
                                                               &checkPaths, sizeof(checkPaths));
@@ -197,6 +204,8 @@ public:
     void WINAPI SaveConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         const DWORD mask = VisibleMetadataColumns();
         if (!key) return;
+        const DWORD delay = NetworkRetrySeconds();
+        registry->SetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay));
         const DWORD checkPaths = AvailabilityChecksEnabled();
         registry->SetValue(key, "CheckAvailability", REG_DWORD, &checkPaths, sizeof(checkPaths));
         registry->SetValue(key, "ResultLimit", REG_DWORD, &configuredResultLimit, sizeof(configuredResultLimit));

@@ -156,6 +156,13 @@ public:
         RememberSelection();
         if (!retry)
             query = text;
+        const auto expression = EffectiveQuery();
+        if (!AvailabilityChecksEnabled() || !HasSearch() || expression != availabilityQuery ||
+            key.source != availabilitySource) {
+            availability.reset();
+            availabilityQuery = expression;
+            availabilitySource = key.source;
+        }
         ++key.generation;
         polling = false;
         pending = HasSearch();
@@ -175,10 +182,6 @@ public:
     }
 
     void Poll() {
-        if (page && page->availability) {
-            for (size_t index : page->availability->observed)
-                CheckResultPath(page->availability, index, page->rows[index].hit.path);
-        }
         if (!HasSearch() || pending || polling) return;
         polling = true;
         ++key.generation;
@@ -207,7 +210,9 @@ public:
         state = reply.state;
         if (state == SearchState::Ready) {
             try {
-                page = std::make_shared<ResultPage>(std::move(reply));
+                if (AvailabilityChecksEnabled() && !availability)
+                    availability = std::make_shared<AvailabilityPage>();
+                page = std::make_shared<ResultPage>(std::move(reply), availability);
             } catch (const std::bad_alloc&) {
                 state = SearchState::Unavailable;
             }
@@ -421,6 +426,9 @@ private:
     std::vector<SearchHit> pendingOperation; // Exact paths captured before the modal host dialog.
     SearchKey key{};
     std::wstring query;
+    std::wstring availabilityQuery;
+    Source availabilitySource{};
+    std::shared_ptr<AvailabilityPage> availability;
     std::shared_ptr<const ResultPage> page;
     SearchState state = SearchState::Ready;
     std::optional<PanelSelection> saved;

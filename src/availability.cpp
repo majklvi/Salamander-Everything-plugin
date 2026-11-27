@@ -1,18 +1,21 @@
 #include "availability.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
 #include <thread>
-#include <unordered_map>
+#include <string_view>
 
 namespace {
 bool checksEnabled = true; // UI thread preference. Workers only own queued jobs.
-constexpr ULONGLONG retryMs = 30000;
+using Clock = std::chrono::steady_clock;
+unsigned networkRetrySeconds = defaultNetworkRetrySeconds; // Written under both lane locks; read by workers under their lane lock.
 struct Job {
     std::weak_ptr<AvailabilityPage> page;
-    size_t index;
     std::wstring path;
+    Clock::time_point firstFailureAt{};
+    unsigned generation = 0;
 };
 
 bool ShareUnavailable(DWORD error) {
@@ -50,56 +53,91 @@ DWORD ProbePath(std::wstring path, bool shareRoot) {
     return GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &info) ? ERROR_SUCCESS : GetLastError();
 }
 
+bool IsNetworkPath(const std::wstring& path) {
+    std::wstring_view view(path);
+    if (view.substr(0, 4) == LR"(\\?\)") {
+        view.remove_prefix(4);
+        if (_wcsnicmp(view.data(), L"UNC\\", 4) == 0) return true;
+    } else if (view.substr(0, 2) == LR"(\\)") return true;
+    if (view.size() < 2 || view[1] != L':') return false;
+    wchar_t root[] = L"A:\\";
+    root[0] = view[0];
+    return GetDriveTypeW(root) == DRIVE_REMOTE;
+}
+
+bool NeedsNetworkRetry(DWORD error) {
+    return Classify(error) == PathState::Missing || error == ERROR_SEM_TIMEOUT ||
+           error == ERROR_TIMEOUT || error == ERROR_NETNAME_DELETED ||
+           error == ERROR_CONNECTION_UNAVAIL;
+}
+
 struct Lane {
     std::mutex mutex;
     std::condition_variable ready;
     std::deque<Job> queue;
+    std::deque<Job> retries; // A single worker appends deadlines in chronological order.
+    unsigned generation = 0;
     std::thread worker;
     bool stopping = false;
 
+    Clock::time_point NextRetry() const {
+        return retries.front().firstFailureAt + std::chrono::seconds(networkRetrySeconds);
+    }
+
     void Run() {
         SetThreadErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, nullptr);
-        std::unordered_map<std::wstring, ULONGLONG> unavailableShares;
         for (;;) {
             Job job;
             {
                 std::unique_lock lock(mutex);
-                ready.wait(lock, [&] { return stopping || !queue.empty(); });
+                while (!stopping && queue.empty() &&
+                       (retries.empty() || Clock::now() < NextRetry())) {
+                    if (retries.empty()) ready.wait(lock);
+                    else {
+                        const auto deadline = NextRetry();
+                        ready.wait_until(lock, deadline);
+                    }
+                }
                 if (stopping) return;
-                job = std::move(queue.front());
-                queue.pop_front();
+                auto& jobs = !retries.empty() && Clock::now() >= NextRetry() ? retries : queue;
+                job = std::move(jobs.front());
+                jobs.pop_front();
             }
             if (job.page.expired()) continue;
-            std::wstring share;
-            if (job.path.compare(0, 2, L"\\\\") == 0 && job.path.compare(0, 4, L"\\\\?\\") != 0) {
-                auto serverEnd = job.path.find(L'\\', 2);
-                if (serverEnd != job.path.npos)
-                    share = job.path.substr(0, job.path.find(L'\\', serverEnd + 1));
-            }
-            const auto now = GetTickCount64();
-            auto cached = unavailableShares.find(share);
-            PathState state = PathState::Missing;
-            if (cached == unavailableShares.end() || cached->second <= now) {
-                const bool root = !share.empty() && (job.path.size() == share.size() ||
-                                     (job.path.size() == share.size() + 1 && job.path.back() == L'\\'));
-                DWORD error = ProbePath(job.path, root);
-                state = Classify(error);
-                if (!share.empty() && ShareUnavailable(error)) {
-                    if (unavailableShares.size() >= 128) unavailableShares.clear();
-                    unavailableShares[share] = now + retryMs;
+            const auto& path = job.path;
+            const bool extendedUNC = _wcsnicmp(path.c_str(), L"\\\\?\\UNC\\", 8) == 0;
+            const bool unc = extendedUNC || (path.compare(0, 2, LR"(\\)") == 0 &&
+                                               path.compare(0, 4, LR"(\\?\)") != 0);
+            const auto serverEnd = unc ? path.find(L'\\', extendedUNC ? 8 : 2) : path.npos;
+            const auto shareEnd = serverEnd == path.npos ? path.npos : path.find(L'\\', serverEnd + 1);
+            const bool root = serverEnd != path.npos && (shareEnd == path.npos || shareEnd + 1 == path.size());
+            const DWORD error = ProbePath(path, root);
+            PathState state = Classify(error);
+            if (job.firstFailureAt == Clock::time_point{} && NeedsNetworkRetry(error) && IsNetworkPath(path)) {
+                std::lock_guard lock(mutex);
+                if (stopping || generation != job.generation) continue;
+                job.firstFailureAt = Clock::now();
+                try {
+                    retries.push_back(std::move(job));
+                    continue;
+                } catch (const std::bad_alloc&) {
+                    state = PathState::Unknown;
                 }
             }
             if (auto page = job.page.lock()) {
-                page->entries[job.index].nextCheck = GetTickCount64() + retryMs;
-                if (page->entries[job.index].state.exchange(state) != state)
-                    page->changed = true;
+                std::lock_guard lock(page->mutex);
+                page->paths.at(job.path) = state;
+                page->changed = true; // Also remove the pending badge after an inconclusive check.
             }
         }
     }
 
     void CancelPending() {
         std::lock_guard lock(mutex);
+        ++generation;
+        retries.clear();
         queue.clear();
+        ready.notify_one();
         if (worker.joinable()) CancelSynchronousIo(worker.native_handle());
     }
 
@@ -107,6 +145,7 @@ struct Lane {
         {
             std::lock_guard lock(mutex);
             stopping = true;
+            retries.clear();
             queue.clear();
         }
         ready.notify_one();
@@ -121,24 +160,45 @@ struct Lane {
 Lane localPaths, networkPaths;
 }
 
-void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, size_t index, const std::wstring& path) {
+PathState AvailabilityPage::State(const std::wstring& path) {
+    std::lock_guard lock(mutex);
+    const auto entry = paths.find(path);
+    return entry == paths.end() ? PathState::Pending : entry->second;
+}
+
+void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, const std::wstring& path) {
     if (!checksEnabled || !page) return;
-    auto& entry = page->entries[index];
-    auto now = GetTickCount64();
-    const auto next = entry.nextCheck.load();
-    if (next > now) return;
     auto& lane = path.compare(0, 2, L"\\\\") == 0 ? networkPaths : localPaths;
     try {
-        if (!next) page->observed.push_back(index);
-        entry.nextCheck = MAXULONGLONG; // Includes queued and in-flight probes.
+        std::lock_guard pageLock(page->mutex);
+        if (!page->paths.try_emplace(path, PathState::Pending).second) return;
         std::lock_guard lock(lane.mutex);
         if (!lane.worker.joinable()) lane.worker = std::thread([&lane] { lane.Run(); });
-        lane.queue.push_back({page, index, path});
+        lane.queue.push_back({page, path, {}, lane.generation});
     } catch (const std::exception&) {
-        entry.nextCheck = now + retryMs;
-        return; // Keep the generic icon if resources are exhausted.
+        std::lock_guard lock(page->mutex);
+        const auto entry = page->paths.find(path);
+        if (entry != page->paths.end()) {
+            entry->second = PathState::Unknown;
+            page->changed = true;
+        }
+        return;
     }
     lane.ready.notify_one();
+}
+
+unsigned NetworkRetrySeconds() {
+    return networkRetrySeconds; // UI thread.
+}
+
+void SetNetworkRetrySeconds(unsigned seconds) {
+    if (seconds > maxNetworkRetrySeconds || seconds == networkRetrySeconds) return;
+    {
+        std::scoped_lock lock(localPaths.mutex, networkPaths.mutex);
+        networkRetrySeconds = seconds;
+    }
+    localPaths.ready.notify_one();
+    networkPaths.ready.notify_one();
 }
 
 bool AvailabilityChecksEnabled() {

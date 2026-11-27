@@ -355,18 +355,16 @@ void CheckAvailabilityTransitions()
     wchar_t folder[MAX_PATH], file[MAX_PATH];
     Check(GetTempPathW(MAX_PATH, folder) && GetTempFileNameW(folder, L"evs", 0, file),
           "created an availability fixture");
-    auto page = std::make_shared<AvailabilityPage>(1);
+    auto page = std::make_shared<AvailabilityPage>();
     auto observe = [&](PathState expected) {
-        // Advance the recheck deadline without a 30-second wait in the regression.
-        if (page->entries[0].nextCheck) page->entries[0].nextCheck = 1;
-        CheckResultPath(page, 0, file);
+        CheckResultPath(page, file);
         const auto deadline = GetTickCount64() + 5000;
         while (!page->changed && GetTickCount64() < deadline) Sleep(5);
-        return page->changed.exchange(false) && page->entries[0].state == expected;
+        return page->changed.exchange(false) && page->State(file) == expected;
     };
     SetAvailabilityChecksEnabled(false);
-    CheckResultPath(page, 0, file);
-    Check(page->observed.empty() && !page->entries[0].nextCheck,
+    CheckResultPath(page, file);
+    Check(page->paths.empty(),
           "disabled availability checks do not enqueue paths");
     SearchReply reply{};
     reply.hits.push_back({L"fixture.txt", file, false});
@@ -377,19 +375,32 @@ void CheckAvailabilityTransitions()
           !listing.data->HasSimplePluginIcon(listing.files[0], FALSE),
           "disabled checks keep native icon loading and omit the availability overlay");
     SetAvailabilityChecksEnabled(true);
+    Check(page->State(file) == PathState::Pending, "unprobed paths start pending");
+    SearchReply pendingReply{};
+    pendingReply.hits.push_back({L"fixture.txt", file, false});
+    auto pendingPage = std::make_shared<ResultPage>(std::move(pendingReply), page);
+    TestDirectory pendingListing;
+    Check(ListResultPage(pendingPage, &pendingListing, pendingListing.data) &&
+          pendingListing.files.front().IconOverlayIndex == 1, "a pending row shows the question mark");
     bool present = observe(PathState::Present);
     bool removed = DeleteFileW(file) != FALSE;
+    CheckResultPath(page, file);
+    StopAvailabilityChecks();
+    Check(page->State(file) == PathState::Present && !page->changed,
+          "the same query retains its first availability result");
+    page = std::make_shared<AvailabilityPage>();
     bool missing = removed && observe(PathState::Missing);
     HANDLE restored = CreateFileW(file, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
     bool presentAgain = false;
     if (restored != INVALID_HANDLE_VALUE) {
         CloseHandle(restored);
+        page = std::make_shared<AvailabilityPage>();
         presentAgain = observe(PathState::Present);
         DeleteFileW(file);
     }
     StopAvailabilityChecks();
-    Check(present && missing && presentAgain && page->observed.size() == 1,
-          "background checks detect disappearance and recovery of the same file");
+    Check(present && missing && presentAgain,
+          "new searches detect disappearance and recovery of the same file");
 }
 
 int main()

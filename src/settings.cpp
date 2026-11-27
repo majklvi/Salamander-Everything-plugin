@@ -222,6 +222,7 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
                          SWP_NOZORDER | SWP_NOACTIVATE);
         }
         CheckDlgButton(dialog, IDC_CHECK_AVAILABILITY, AvailabilityChecksEnabled() ? BST_CHECKED : BST_UNCHECKED);
+        SetDlgItemInt(dialog, IDC_NETWORK_RETRY, NetworkRetrySeconds(), FALSE);
         SetDlgItemInt(dialog, IDC_RESULT_LIMIT, configuredResultLimit, FALSE);
         const auto mask = VisibleMetadataColumns();
         for (const auto& check : checks)
@@ -282,6 +283,12 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
             SetFocus(GetDlgItem(dialog, IDC_RESULT_LIMIT));
             return TRUE;
         }
+        const UINT retry = GetDlgItemInt(dialog, IDC_NETWORK_RETRY, &valid, FALSE);
+        if (!valid || retry > maxNetworkRetrySeconds) {
+            MessageBoxW(dialog, L"Enter a whole number from 0 to 3600 seconds.", L"Network retry delay", MB_OK);
+            SetFocus(GetDlgItem(dialog, IDC_NETWORK_RETRY));
+            return TRUE;
+        }
         unsigned mask = 0;
         for (const auto& check : checks)
             if (IsDlgButtonChecked(dialog, check.control) == BST_CHECKED) mask |= check.flag;
@@ -291,6 +298,7 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         const bool availabilityChanged = SetAvailabilityChecksEnabled(
             IsDlgButtonChecked(dialog, IDC_CHECK_AVAILABILITY) == BST_CHECKED);
         const bool changed = availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
+        SetNetworkRetrySeconds(retry);
         configuredResultLimit = limit;
         preferredSource = DialogSource(dialog);
         visibleProperties = std::move(selected);

@@ -187,3 +187,9 @@ On Open Samandarin 0.16 x64, launch an isolated portable profile that restores a
 In Open Samandarin 0.16 x64 with Everything 1.5, the query `\\localhost\MkvMetaEfuE2E$` displayed one unavailable folder and seven unavailable files. All eight icons had red crosses. Clearing **Check availability and mark unavailable items** and confirming with **OK** removed all eight crosses. Reopening Settings showed the checkbox cleared. Enabling it and confirming restored all eight crosses. The query was entered only once, and the status line showed eight of eight results after each change.
 
 In the revised Settings dialog, three horizontal rules follow the Result columns, Search results, and Availability captions. In the dark Samandarin 0.16 x64 test window, all three appeared as subdued single-pixel lines aligned with the captions. Their dark color matches the native Panels configuration page (RGB 56, 56, 56).
+
+### Network availability confirmation
+
+Two worker-level checks used Windows SMB on localhost. A path on a nonexistent share reached Missing after 60.06 seconds. A missing file on an accessible share was still Pending after three seconds. Creating that file before the retry produced Present at 60.06 seconds, without a new query. The listing regression checked the pending overlay index and the disabled setting. Windows loaded both overlay resources from the release binary at 16, 32 and 48 pixels. These checks used loopback SMB rather than a physical NAS.
+
+With the configurable retry delay, a missing file on loopback SMB reached Missing after 5.031 seconds at the new default. Changing an outstanding 60-second wait to 2 seconds after its first second completed the check at 2.031 seconds from the start. Setting the delay to zero completed both attempts in 16 milliseconds.

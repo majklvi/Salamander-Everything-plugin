@@ -20,11 +20,11 @@ struct ResultRow {
     std::string displayParent;
     unsigned rank;
     const ResultPage* owner;
-    size_t index;
+
 };
 
 struct ResultPage {
-    explicit ResultPage(SearchReply&& reply);
+    explicit ResultPage(SearchReply&& reply, std::shared_ptr<AvailabilityPage> checks = {});
     ResultPage(const ResultPage&) = delete;
     ResultPage& operator=(const ResultPage&) = delete;
     std::shared_ptr<AvailabilityPage> availability;
