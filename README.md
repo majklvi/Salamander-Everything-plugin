@@ -2,7 +2,7 @@
 
 [Download the x64 release](https://github.com/majklvi/Salamander-Everything-plugin/releases/latest) · [Installation guide](docs/INSTALL.txt) · [Release checks and response times](docs/milestone-5.md)
 
-Everything Search 0.6.0 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches by default from the selected Everything instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
+Everything Search 0.5.1 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches by default from the selected Everything instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
 
 Enable **Parent folder** to distinguish identical names. Press **Enter** on a result to open it, or press **Shift+F3** to open its containing folder in the same panel and focus the item. [File action and sort tests](docs/milestone-4.md)
 
