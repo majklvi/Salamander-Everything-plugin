@@ -10,6 +10,7 @@
 #include <uxtheme.h>
 #include <algorithm>
 #include <cwchar>
+#include <list>
 #include <utility>
 
 namespace {
@@ -47,7 +48,7 @@ struct Binding {
     int minListHeight = 0;
 };
 
-Binding binding;
+std::list<Binding> bindings;
 HWND dispatcher = nullptr;
 HHOOK editKeyHook = nullptr;
 constexpr UINT editFocusedResult = WM_APP + 62;
@@ -123,7 +124,7 @@ HWND ListOnSide(HWND frame, int side)
     if (count == 1) {
         CSalamanderPanelTabInfo right{};
         if ((side == PANEL_LEFT && DisplayedTab(PANEL_RIGHT, right) && (right.Flags & PANEL_TAB_FLAG_DETACHED)) ||
-            lists[0] == GetFocus() || lists[0] == binding.list)
+            lists[0] == GetFocus())
             return lists[0];
     }
     return nullptr;
@@ -182,7 +183,7 @@ int DetailedRowHeight(int fontHeight, UINT dpi)
     return std::max(fontHeight + 4, MulDiv(16, iconDpi, 96) + 1);
 }
 
-int StripHeight()
+int StripHeight(const Binding& binding)
 {
     return binding.natural.right > binding.natural.left &&
            binding.natural.bottom - binding.natural.top >= binding.rowHeight + binding.minListHeight
@@ -194,12 +195,14 @@ void PlaceWindow(HWND window, const RECT& r, UINT flags)
     SetWindowPos(window, nullptr, r.left, r.top, r.right - r.left, r.bottom - r.top, flags);
 }
 
-void Unbind()
+void Unbind(Binding& binding)
 {
     Binding old = binding;
     binding = {};
     StopObservingResultHeader(old.header);
-    if (old.frame) StopObservingWindow(old.frame, HostProc);
+    if (old.frame && std::none_of(bindings.begin(), bindings.end(),
+        [&](const Binding& other) { return other.frame == old.frame; }))
+        StopObservingWindow(old.frame, HostProc);
     if (old.panel) StopObservingWindow(old.panel, HostProc);
     if (old.list && StopObservingWindow(old.list, HostProc) &&
         GetParent(old.list) == old.panel) {
@@ -209,9 +212,9 @@ void Unbind()
     if (old.font) DeleteObject(old.font);
 }
 
-void Layout()
+void Layout(Binding& binding)
 {
-    const int h = StripHeight();
+    const int h = StripHeight(binding);
     RECT results = binding.natural;
     results.top += h;
     RECT current = InParent(binding.list, binding.panel);
@@ -230,7 +233,7 @@ void Layout()
         PlaceWindow(binding.popup, strip, placementFlags | SWP_SHOWWINDOW);
 }
 
-bool Bind(HWND frame, HWND list, CPluginFSInterfaceAbstract* fs)
+bool Bind(Binding& binding, HWND frame, HWND list, CPluginFSInterfaceAbstract* fs)
 {
     binding.frame = frame;
     binding.list = list;
@@ -255,7 +258,7 @@ bool Bind(HWND frame, HWND list, CPluginFSInterfaceAbstract* fs)
            ObserveWindow(list, HostProc, 0);
 }
 
-void EnterResultsIfReady()
+void EnterResultsIfReady(Binding& binding)
 {
     if (!binding.enterWhenListed)
         return;
@@ -342,48 +345,12 @@ LRESULT CALLBACK SortFrameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& 
     return 0;
 }
 
-void Sync()
+void UpdateStrip(Binding& binding, bool focusRequested)
 {
-    HWND frame = gGeneral->GetMainWindowHWND();
-    if (frame != sortFrame) {
-        RestoreDirectoryCommands(nullptr);
-        if (sortFrame) StopObservingWindow(sortFrame, SortFrameProc);
-        sortFrame = frame && ObserveWindow(frame, SortFrameProc, 0) ? frame : nullptr;
-    }
-    if (sortFrame) {
-        ApplyNativeOrder(frame, PANEL_LEFT);
-        ApplyNativeOrder(frame, PANEL_RIGHT);
-    }
-    CPluginFSInterfaceAbstract* fs = gGeneral->GetPanelPluginFS(PANEL_SOURCE);
-    if (IsResultsFS(fs)) ApplyRankedOrder(frame, fs);
-    RestoreResultSelection();
-    HWND list = IsResultsFS(fs) ? SourceList(frame, fs) : nullptr;
-    const bool focusRequested = fs && focusRequest == fs;
-    focusRequest = nullptr; // An unsupported or hidden view must not steal focus later.
-    HWND header = list ? FindHeader(list) : nullptr;
-    if (!list || frame != binding.frame || list != binding.list || fs != binding.fs) {
-        // Activation can run between mouse-down and mouse-up. Moving an
-        // inactive list at that point changes which header or row receives the
-        // original gesture. Keep its geometry until the host has handled it.
-        if (list && !focusRequested && PointerGesturePending()) {
-            if (!waitingForPointer)
-                waitingForPointer = SetTimer(dispatcher, pointerTimer, 25, nullptr) != 0;
-            if (waitingForPointer) return;
-        }
-        const bool movingEditor = fs && fs == binding.fs && binding.edit;
-        DWORD start = 0, end = 0;
-        if (movingEditor)
-            SendMessageW(binding.edit, EM_GETSEL, reinterpret_cast<WPARAM>(&start), reinterpret_cast<LPARAM>(&end));
-        if (binding.fs) Unbind();
-        if (!list)
-            return;
-        if (!Bind(frame, list, fs)) {
-            Unbind();
-            return;
-        }
-        if (movingEditor)
-            SendMessageW(binding.edit, EM_SETSEL, start, end);
-    }
+    HWND list = binding.list;
+    HWND frame = binding.frame;
+    auto* fs = binding.fs;
+    HWND header = FindHeader(list);
     if (header != binding.header) {
         StopObservingResultHeader(binding.header);
         binding.header = header;
@@ -400,7 +367,7 @@ void Sync()
         // user switches back to Detailed view. The list uses its full height.
         binding.rowHeight = 0;
         binding.enterWhenListed = false;
-        Layout();
+        Layout(binding);
         return;
     }
     const UINT dpi = GetDpiForWindow(list);
@@ -422,20 +389,107 @@ void Sync()
         }
     }
     binding.minListHeight = headerRect.bottom + row + GetSystemMetricsForDpi(SM_CYHSCROLL, dpi);
-    Layout();
+    Layout(binding);
     if (focusRequested && IsWindowVisible(binding.popup) && IsWindowEnabled(binding.popup)) {
         SetActiveWindow(binding.popup);
         SetFocus(binding.edit);
     }
-    EnterResultsIfReady();
-    if (IsWindowEnabled(frame) && IsWindowVisible(binding.popup)) CheckSearchPrerequisite(frame);
+    EnterResultsIfReady(binding);
+    if (gGeneral->GetPanelPluginFS(PANEL_SOURCE) == fs && IsWindowEnabled(frame) && IsWindowVisible(binding.popup))
+        CheckSearchPrerequisite(frame);
+}
+
+void Sync()
+{
+    HWND frame = gGeneral->GetMainWindowHWND();
+    if (frame != sortFrame) {
+        RestoreDirectoryCommands(nullptr);
+        if (sortFrame) StopObservingWindow(sortFrame, SortFrameProc);
+        sortFrame = frame && ObserveWindow(frame, SortFrameProc, 0) ? frame : nullptr;
+    }
+    if (sortFrame) {
+        ApplyNativeOrder(frame, PANEL_LEFT);
+        ApplyNativeOrder(frame, PANEL_RIGHT);
+    }
+    CPluginFSInterfaceAbstract* fs = gGeneral->GetPanelPluginFS(PANEL_SOURCE);
+    if (IsResultsFS(fs)) ApplyRankedOrder(frame, fs);
+    RestoreResultSelection();
+    HWND sourceList = IsResultsFS(fs) ? SourceList(frame, fs) : nullptr;
+    const bool focusRequested = fs && focusRequest == fs;
+    focusRequest = nullptr;
+
+    // A panel switch changes the source, but leaves both displayed tabs and
+    // their list windows in place. Release a strip only when its view changes.
+    DWORD start = 0, end = 0;
+    bool movingEditor = false;
+    bindings.remove_if([&](Binding& b) {
+        bool keep = b.fs && b.list && b.panel && b.frame && GetParent(b.list) == b.panel &&
+                    GetParent(b.panel) == b.frame && IsWindowVisible(b.panel);
+        if (keep && b.fs == fs) keep = b.list == sourceList;
+        else if (keep && !HasClass(b.frame, tornFrameClass)) {
+            int side;
+            keep = gGeneral->GetPanelWithPluginFS(b.fs, side) &&
+                   ListOnSide(b.frame, side) == b.list;
+        }
+        if (keep && sourceList == b.list && b.fs != fs) keep = false;
+        if (keep) return false;
+        if (fs && b.fs == fs && b.edit) {
+            SendMessageW(b.edit, EM_GETSEL, reinterpret_cast<WPARAM>(&start), reinterpret_cast<LPARAM>(&end));
+            movingEditor = true;
+        }
+        Unbind(b);
+        return true;
+    });
+
+    auto ensureStrip = [&](HWND list, CPluginFSInterfaceAbstract* owner) {
+        if (!list || std::any_of(bindings.begin(), bindings.end(),
+                [&](const Binding& b) { return b.list == list; })) return;
+        if (!focusRequested && PointerGesturePending()) {
+            if (!waitingForPointer) waitingForPointer = SetTimer(dispatcher, pointerTimer, 25, nullptr) != 0;
+            if (waitingForPointer) return;
+        }
+        auto& b = bindings.emplace_back();
+        if (!Bind(b, frame, list, owner)) {
+            Unbind(b);
+            bindings.pop_back();
+        } else if (movingEditor && owner == fs)
+            SendMessageW(b.edit, EM_SETSEL, start, end);
+    };
+    ensureStrip(sourceList, fs);
+    if (HasClass(frame, mainClass)) {
+        for (int side : {PANEL_LEFT, PANEL_RIGHT}) {
+            auto* owner = gGeneral->GetPanelPluginFS(side);
+            CSalamanderPanelTabInfo tab{};
+            if (owner != fs && IsResultsFS(owner) && DisplayedTab(side, tab) &&
+                !(tab.Flags & PANEL_TAB_FLAG_DETACHED))
+                ensureStrip(ListOnSide(frame, side), owner);
+        }
+    }
+    for (auto& b : bindings) UpdateStrip(b, focusRequested && b.fs == fs);
 }
 
 LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR)
 {
-    if (hwnd == binding.frame && msg == WM_COMMAND && LOWORD(wp) == changeFilterCommand &&
-        binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs)
-        return ShowResultFilter(hwnd, wp, lp, binding.fs);
+    for (auto& b : bindings) {
+        if (hwnd != b.frame) continue;
+        if (msg == WM_COMMAND && LOWORD(wp) == changeFilterCommand &&
+            gGeneral->GetPanelPluginFS(PANEL_SOURCE) == b.fs)
+            return ShowResultFilter(hwnd, wp, lp, b.fs);
+        if (msg == WM_ENABLE && b.popup) EnableWindow(b.popup, wp != FALSE);
+        if (msg == WM_NCDESTROY) b.frame = nullptr;
+    }
+    auto it = std::find_if(bindings.begin(), bindings.end(), [&](const Binding& b) {
+        return hwnd == b.list || hwnd == b.panel;
+    });
+    if (it == bindings.end()) {
+        if (msg == WM_NCDESTROY) StopObservingWindow(hwnd, HostProc);
+        if (msg == WM_WINDOWPOSCHANGED || msg == WM_ACTIVATE || msg == WM_ENABLE ||
+            msg == WM_SHOWWINDOW || msg == WM_DPICHANGED || msg == WM_NCDESTROY)
+            ScheduleEditorSync();
+        forward = true;
+        return 0;
+    }
+    Binding& binding = *it;
     if (hwnd == binding.list &&
         (msg == WM_MOUSEWHEEL || msg == WM_KEYDOWN || msg == WM_LBUTTONDOWN || msg == WM_VSCROLL))
         ForgetResultScroll(binding.fs);
@@ -450,7 +504,6 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forwa
         StopObservingWindow(hwnd, HostProc);
         if (hwnd == binding.list) binding.list = nullptr;
         if (hwnd == binding.panel) binding.panel = nullptr;
-        if (hwnd == binding.frame) binding.frame = nullptr;
         ScheduleEditorSync();
     } else if (hwnd == binding.list && msg == WM_WINDOWPOSCHANGING) {
         WINDOWPOS* p = reinterpret_cast<WINDOWPOS*>(lp);
@@ -461,14 +514,10 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forwa
         if (!(p->flags & SWP_NOMOVE)) { r.left = p->x; r.top = p->y; }
         r.right = r.left + w;
         r.bottom = r.top + h;
-        if (!(p->flags & SWP_NOMOVE)) p->y = r.top + StripHeight();
-        if (!(p->flags & SWP_NOSIZE)) p->cy = h - StripHeight();
+        if (!(p->flags & SWP_NOMOVE)) p->y = r.top + StripHeight(binding);
+        if (!(p->flags & SWP_NOSIZE)) p->cy = h - StripHeight(binding);
     } else if (msg == WM_WINDOWPOSCHANGED || msg == WM_ACTIVATE || msg == WM_ENABLE || msg == WM_SHOWWINDOW ||
                msg == WM_DPICHANGED || msg == WM_DPICHANGED_AFTERPARENT || msg == WM_PARENTNOTIFY) {
-        // A modal dialog disables the frame. Its owned search strip must stay
-        // painted over the reserved row, but must not accept input.
-        if (hwnd == binding.frame && msg == WM_ENABLE && binding.popup)
-            EnableWindow(binding.popup, wp != FALSE);
         if (hwnd == binding.panel && msg == WM_SHOWWINDOW && !wp && binding.popup)
             ShowWindow(binding.popup, SW_HIDE);
         ScheduleEditorSync();
@@ -479,6 +528,13 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forwa
 
 LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forward, DWORD_PTR)
 {
+    auto it = std::find_if(bindings.begin(), bindings.end(),
+        [&](const Binding& b) { return b.edit == hwnd; });
+    if (it == bindings.end()) {
+        forward = true;
+        return 0;
+    }
+    Binding& binding = *it;
     if (msg == WM_HELP) {
         gGeneral->OpenHtmlHelp(hwnd, HHCDisplayContext, IDH_SEARCH, FALSE);
         return 0;
@@ -527,7 +583,7 @@ LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forwa
             SetFocus(binding.list);
         } else {
             binding.enterWhenListed = true;
-            EnterResultsIfReady();
+            EnterResultsIfReady(binding);
         }
         return 0;
     }
@@ -554,7 +610,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         Sync();
         return 0;
     }
-    if (hwnd == binding.popup) {
+    auto it = std::find_if(bindings.begin(), bindings.end(),
+        [&](const Binding& b) { return b.popup == hwnd; });
+    if (it != bindings.end()) {
+        Binding& binding = *it;
+        if (msg == WM_MOUSEACTIVATE && gGeneral->GetPanelPluginFS(PANEL_SOURCE) != binding.fs) {
+            int side;
+            CSalamanderPanelTabInfo tab{};
+            if (HasClass(binding.frame, tornFrameClass)) {
+                SetActiveWindow(binding.frame);
+                SetFocus(binding.list);
+            } else if (gGeneral->GetPanelWithPluginFS(binding.fs, side) && DisplayedTab(side, tab)) {
+                gGeneral->ActivatePanelTab(tab.TabId, TRUE);
+            }
+            return gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs ? MA_ACTIVATE : MA_NOACTIVATEANDEAT;
+        }
         if ((msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORSTATIC) && binding.dark &&
             reinterpret_cast<HWND>(lp) == binding.edit) {
             const auto dc = reinterpret_cast<HDC>(wp);
@@ -599,9 +669,10 @@ LRESULT CALLBACK ResultKey(int code, WPARAM removed, LPARAM data)
 {
     if (code == HC_ACTION && removed == PM_REMOVE) {
         auto* msg = reinterpret_cast<MSG*>(data);
-        if (binding.list && msg->hwnd == binding.list && msg->message == WM_KEYDOWN &&
+        if (msg->message == WM_KEYDOWN &&
             msg->wParam == VK_F4 && !(GetKeyState(VK_SHIFT) & 0x8000) &&
-            !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000))
+            !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000) &&
+            std::any_of(bindings.begin(), bindings.end(), [&](const Binding& b) { return b.list == msg->hwnd; }))
             msg->message = (msg->lParam & (1L << 30)) ? WM_NULL : editFocusedResult;
     }
     return CallNextHookEx(nullptr, code, removed, data);
@@ -663,9 +734,12 @@ HWND ResultLayoutWindow(BOOL left)
 // reads its 32-bit track position instead of WM_VSCROLL's 16-bit argument.
 static HWND ResultScrollBar(CPluginFSInterfaceAbstract* fs)
 {
-    if (binding.fs != fs || !binding.header || !IsWindowVisible(binding.header)) return nullptr;
-    HWND bar = FindWindowExW(binding.list, nullptr, L"ScrollBar", nullptr);
-    return bar && (GetWindowLongPtrW(bar, GWL_STYLE) & SBS_VERT) ? bar : nullptr;
+    for (const auto& b : bindings) {
+        if (b.fs != fs || !b.header || !IsWindowVisible(b.header)) continue;
+        HWND bar = FindWindowExW(b.list, nullptr, L"ScrollBar", nullptr);
+        if (bar && (GetWindowLongPtrW(bar, GWL_STYLE) & SBS_VERT)) return bar;
+    }
+    return nullptr;
 }
 
 int ResultScrollPosition(CPluginFSInterfaceAbstract* fs)
@@ -695,7 +769,11 @@ void ForgetEditorFS(CPluginFSInterfaceAbstract* fs)
 {
     ForgetNativeOrder(fs);
     if (focusRequest == fs) focusRequest = nullptr;
-    if (binding.fs == fs) Unbind();
+    bindings.remove_if([&](Binding& b) {
+        if (b.fs != fs) return false;
+        Unbind(b);
+        return true;
+    });
 }
 
 void ShutdownEditor()
@@ -711,7 +789,8 @@ void ShutdownEditor()
     if (listFocusObserver) UnhookWinEvent(listFocusObserver);
     listFocusObserver = nullptr;
     focusRequest = nullptr;
-    Unbind();
+    for (auto& b : bindings) Unbind(b);
+    bindings.clear();
     if (dispatcher) DestroyWindow(dispatcher);
     dispatcher = nullptr;
     waitingForPointer = false;

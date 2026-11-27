@@ -212,6 +212,10 @@ The result-listing regression uses a Win32 viewport with Name and Parent folder 
 
 In Open Samandarin 0.16 x64 with Everything 1.5, the live query `WidthCheck27` returned one file named `WidthCheck27 - Annual catalogue for the November exhibition - approved.txt` in `C:\Users\majkl\Desktop\PanelWidthCheck\November archive\Final proofs`. The initial live check found that the host clipped the extension because the Name cell reserved two pixels less padding than the renderer. After correcting the padding, dragging the splitter to about 365 pixels shortened both labels in the middle. Dragging it back to about 1350 pixels restored the exact full filename, including .txt, and the full parent path in the same row. The query was not re-entered or manually refreshed.
 
+### Switching away from a visible search panel
+
+In Open Samandarin 0.16 x64, pressing Tab from the left query field activated the right disk panel. The left query `WidthCheck27`, its column headings and its single result stayed at the same screen positions. Opening a second search on the right showed both fields side by side. Clicking the inactive left field and appending ` ext:txt` preserved the right query `exact:salamand.exe` and its seven results.
+
 ### Scrolling away from the focused result
 
 In Open Samandarin 0.16 x64, the query `ext:dll` returned 506 results. With Name sorted ascending and the first `7z.dll` focused, scrolling with the mouse wheel brought `api-ms-win-core-interlocked-l1-1-0.dll` to the top of the viewport. It stayed there after a pause and after Ctrl+R refreshed the listing. Pressing Down then moved focus to the second `7z.dll` near the start of the list, confirming that scrolling had preserved the original keyboard focus.
