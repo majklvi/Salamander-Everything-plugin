@@ -377,7 +377,10 @@ public:
         }
         auto* name = const_cast<CColumn*>(view->GetColumn(0));
         CColumn* parent = nullptr;
-        int available = layout.viewport;
+        // Leave a little room at the panel edge for differences between the
+        // measured text and the host's final column widths at the current DPI.
+        const int edgeMargin = (std::max)(MulDiv(12, dpi, 96), TextWidth(layout.dc, "M"));
+        int available = layout.viewport - edgeMargin;
         for (int i = 1; i < view->GetColumnsCount(); ++i) {
             auto* col = const_cast<CColumn*>(view->GetColumn(i));
             if (col->ID == COLUMN_ID_CUSTOM && BaseColumn(col->CustomData) == 0) parent = col;
@@ -385,7 +388,7 @@ public:
         }
         // The host clips fixed cells using SPACE_WIDTH (10 px at 96 DPI),
         // with extra space for the icon and focus frame in column zero.
-        const int pad = MulDiv(10, dpi, 96), namePad = pad + MulDiv(20, dpi, 96);
+        const int pad = MulDiv(10, dpi, 96), namePad = MulDiv(30, dpi, 96);
         int nameWidth = TextWidth(layout.dc, name->Name) + namePad;
         int parentWidth = parent ? TextWidth(layout.dc, parent->Name) + pad : 0;
         for (const auto& row : page->rows) {
@@ -401,8 +404,8 @@ public:
         }
         const bool fixedName = name->FixedWidth && name->Width;
         const bool fixedParent = parent && parent->FixedWidth && parent->Width;
-        if (fixedName) nameWidth = name->Width;
-        if (fixedParent) parentWidth = parent->Width;
+        nameWidth = fixedName ? name->Width : (std::max)(minimum, nameWidth);
+        if (parent) parentWidth = fixedParent ? parent->Width : (std::max)(minimum, parentWidth);
         if (!fixedName && !fixedParent && nameWidth + parentWidth > available) {
             nameWidth = (std::min)(nameWidth, (std::max)(available / 2, available - parentWidth));
             parentWidth = (std::min)(parentWidth, available - nameWidth);

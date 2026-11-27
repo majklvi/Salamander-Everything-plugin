@@ -499,6 +499,10 @@ int main()
         masked.data->SetupView(TRUE, &narrow, nullptr, nullptr);
         auto nameCell = narrow.Cell(0, masked.files.front());
         auto folderCell = narrow.Cell(1, masked.files.front());
+        const auto& layout = static_cast<ListingData*>(masked.data)->layout;
+        Check(static_cast<int>(narrow.columns[0].Width) + layout.parent + MulDiv(10, layout.dpi, 96) <=
+                  layout.viewport - MulDiv(12, layout.dpi, 96),
+              "automatic Name and Parent folder widths leave a scaled margin at the panel edge");
         Check(nameCell.size() < strlen(masked.files.front().Name) && nameCell.substr(nameCell.size()-4) == ".pdf" &&
               folderCell.size() < row.displayParent.size() && folderCell.substr(folderCell.size()-6) == "latest",
               "narrow Name and Parent folder cells retain both ends");

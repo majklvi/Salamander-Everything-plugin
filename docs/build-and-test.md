@@ -231,3 +231,7 @@ The result identity regression opens the second of two folders with the same nam
 ### Result limit controls
 
 In Settings, Default puts 200 back in the Maximum results field. OK applies the value to open searches. The hints link explains when to use a larger limit or request all matches. The bottom row uses four buttons of equal width.
+
+### Panel edge clearance for compact labels
+
+Automatic Name and Parent folder widths reserve at least 12 pixels at 96 DPI, scaled for the current display. The layout regression checks the clearance on a narrow panel.
