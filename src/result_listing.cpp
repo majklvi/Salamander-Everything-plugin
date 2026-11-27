@@ -1,5 +1,6 @@
 #include "result_listing.h"
 #include "result_order.h"
+#include "settings_resource.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -193,8 +194,16 @@ int WINAPI PlaceholderIndex()
 {
     const auto* row = ListingRow(transferFile ? *transferFile : nullptr);
     if (!row) return transferIsDir && *transferIsDir ? 1 : 0;
-    CheckResultPath(row->owner->availability, row->hit.path);
-    return row->hit.directory ? 1 : 0;
+    const auto& availability = row->owner->availability;
+    const int base = row->hit.directory ? 1 : 0;
+    if (!availability) return base;
+    const auto state = availability->State(row->hit.path);
+    if (state == PathState::Pending) CheckResultPath(availability, row->hit.path);
+    switch (state) {
+    case PathState::Missing: return 2 + base;
+    case PathState::Pending: return 4 + base;
+    default: return base;
+    }
 }
 
 // Column zero is Parent folder. Each metadata column uses its one-based
@@ -472,7 +481,7 @@ public:
     HIMAGELIST WINAPI GetSimplePluginIcons(int size) override {
         if (placeholders) ImageList_Destroy(placeholders);
         const int pixels = size == SALICONSIZE_48 ? 48 : size == SALICONSIZE_32 ? 32 : 16;
-        placeholders = ImageList_Create(pixels, pixels, ILC_COLOR32 | ILC_MASK, 2, 0);
+        placeholders = ImageList_Create(pixels, pixels, ILC_COLOR32 | ILC_MASK, 8, 0);
         if (!placeholders) return nullptr;
         for (int kind : {SALICON_NONASSOCIATED, SALICON_DIRECTORY}) {
             HICON icon = gGeneral->GetSalamanderIcon(kind, size);
@@ -482,6 +491,27 @@ public:
                 ImageList_Destroy(placeholders);
                 placeholders = nullptr;
                 break;
+            }
+        }
+        // Ordinary FS refreshes copy the old IconOverlayIndex by basename.
+        // Keep badges in our file/folder placeholders instead. The paint
+        // callback selects a variant by the current state of the exact path.
+        for (int resource : {IDI_UNAVAILABLE, IDI_CHECKING}) {
+            if (!placeholders) break;
+            HICON badge = static_cast<HICON>(LoadImageW(gInstance, MAKEINTRESOURCEW(resource),
+                                                        IMAGE_ICON, pixels, pixels, LR_DEFAULTCOLOR));
+            const int slot = badge ? ImageList_AddIcon(placeholders, badge) : -1;
+            if (badge) DestroyIcon(badge);
+            bool ok = slot >= 0 && ImageList_SetOverlayImage(placeholders, slot, 1);
+            for (int base = 0; ok && base < 2; ++base) {
+                HICON decorated = ImageList_GetIcon(placeholders, base, ILD_TRANSPARENT | INDEXTOOVERLAYMASK(1));
+                ok = decorated && ImageList_AddIcon(placeholders, decorated) >= 0;
+                if (decorated) DestroyIcon(decorated);
+            }
+            if (ok) ok = ImageList_Remove(placeholders, slot) != FALSE;
+            if (!ok) {
+                ImageList_Destroy(placeholders);
+                placeholders = nullptr;
             }
         }
         return placeholders;
@@ -672,8 +702,7 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
             // Keep indexed attributes in the display column so enabling it
             // preserves the membership of the Everything result page.
             row.Attr = item.hit.directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-            const auto state = page->availability ? page->availability->State(item.hit.path) : PathState::Unknown;
-            row.IconOverlayIndex = state == PathState::Missing ? 0 : state == PathState::Pending ? 1 : ICONOVERLAYINDEX_NOTUSED;
+            row.IconOverlayIndex = ICONOVERLAYINDEX_NOTUSED;
             row.PluginData = reinterpret_cast<DWORD_PTR>(&item);
             // A single group preserves Everything's ranking across folders and files.
             // Open and Reveal use the original type and full path from the snapshot.

@@ -194,6 +194,12 @@ Two worker-level checks used Windows SMB on localhost. A path on a nonexistent s
 
 With the configurable retry delay, a missing file on loopback SMB reached Missing after 5.031 seconds at the new default. Changing an outstanding 60-second wait to 2 seconds after its first second completed the check at 2.031 seconds from the start. Setting the delay to zero completed both attempts in 16 milliseconds.
 
+### Automatic availability badge refresh
+
+Open Samandarin 0.16 preserves an item's previous overlay index by name when refreshing a listing. This could leave a question mark on screen after the background check finished. The plugin now chooses the icon at paint time using the availability recorded for the full path.
+
+With Everything 1.5 and the default five-second retry delay, the test query `\\localhost\MkvMetaEfuE2E$ | WidthCheck27` returned nine items. One disconnected network folder and seven files initially showed question marks. All eight changed to red crosses while the query field retained focus. The accessible local file kept its normal icon. No input, column changes or manual refresh were needed.
+
 ### Sorting visually identical compact names
 
 In Open Samandarin 0.16 x64 with Everything 1.5, the query `esCompactProbe27` returned three files. Their names differed only in the middle (`Alpha`, `Mike`, and `Zulu`). With **Shorten long names and parent folders** enabled, all three displayed labels were identical. The disk panel established their respective sizes as 19, 31, and 7 bytes.

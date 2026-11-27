@@ -96,7 +96,9 @@ public:
         data = &listing;
         column = &customData;
     }
-    void WINAPI SetPluginSimpleIconCallback(FGetPluginIconIndex) override {}
+    FGetPluginIconIndex iconIndex = nullptr;
+    void WINAPI SetPluginSimpleIconCallback(FGetPluginIconIndex callback) override { iconIndex = callback; }
+    int PaintIcon(const CFileData& row) { file = &row; return iconIndex(); }
     int WINAPI GetColumnsCount() override { return static_cast<int>(columns.size()); }
     const CColumn* WINAPI GetColumn(int i) override { return &columns.at(i); }
     BOOL WINAPI InsertColumn(int i, const CColumn* column) override {

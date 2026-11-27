@@ -22,6 +22,7 @@ const std::vector<EverythingFilter>& FilterCatalog() {
     return filters;
 }
 
+HINSTANCE gInstance = GetModuleHandleW(nullptr);
 HWND layoutWindow = nullptr;
 int scrollPosition = -1;
 int ResultScrollPosition(CPluginFSInterfaceAbstract*) { return scrollPosition; }
@@ -390,8 +391,15 @@ void CheckAvailabilityTransitions()
     auto pendingPage = std::make_shared<ResultPage>(std::move(pendingReply), page);
     TestDirectory pendingListing;
     Check(ListResultPage(pendingPage, &pendingListing, pendingListing.data) &&
-          pendingListing.files.front().IconOverlayIndex == 1, "a pending row shows the question mark");
+          pendingListing.files.front().IconOverlayIndex == ICONOVERLAYINDEX_NOTUSED,
+          "ordinary FS refresh cannot copy a stale pending overlay");
+    TestView iconView;
+    pendingListing.data->SetupView(TRUE, &iconView, nullptr, nullptr);
+    Check(iconView.PaintIcon(pendingListing.files.front()) == 4,
+          "the first paint queues the path and selects its pending placeholder");
     bool present = observe(PathState::Present);
+    Check(iconView.PaintIcon(pendingListing.files.front()) == 0,
+          "the same row loses its pending badge when the worker finds the file");
     bool removed = DeleteFileW(file) != FALSE;
     CheckResultPath(page, file);
     StopAvailabilityChecks();
@@ -399,6 +407,13 @@ void CheckAvailabilityTransitions()
           "the same query retains its first availability result");
     page = std::make_shared<AvailabilityPage>();
     bool missing = removed && observe(PathState::Missing);
+    SearchReply missingReply{};
+    missingReply.hits.push_back({L"fixture.txt", file, false});
+    auto missingPage = std::make_shared<ResultPage>(std::move(missingReply), page);
+    TestDirectory missingListing;
+    Check(ListResultPage(missingPage, &missingListing, missingListing.data) &&
+          iconView.PaintIcon(missingListing.files.front()) == 2,
+          "the missing file uses the crossed placeholder");
     HANDLE restored = CreateFileW(file, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
     bool presentAgain = false;
     if (restored != INVALID_HANDLE_VALUE) {

@@ -121,16 +121,6 @@ public:
                     "Everything Search", MB_OK | MB_ICONINFORMATION);
     }
     void WINAPI Connect(HWND, CSalamanderConnectAbstract* host) override {
-        HICON overlays[6]{};
-        constexpr int resources[] = {IDI_UNAVAILABLE, IDI_CHECKING};
-        for (int badge = 0; badge < 2; ++badge) {
-            for (int i = 0; i < 3; ++i) {
-                const int size = 16 * (i + 1);
-                overlays[3 * badge + i] = static_cast<HICON>(LoadImageW(gInstance,
-                    MAKEINTRESOURCEW(resources[badge]), IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
-            }
-        }
-        gGeneral->SetPluginIconOverlays(2, overlays);
         RegisterMenuIcon(host);
         host->AddMenuItem(-1, "&Open search", SALHOTKEY('E', HOTKEYF_CONTROL | HOTKEYF_SHIFT), openSearch, FALSE,
                           MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
