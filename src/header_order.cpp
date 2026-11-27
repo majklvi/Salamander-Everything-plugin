@@ -29,6 +29,7 @@ Rows VisibleFileOrder(int panel = PANEL_SOURCE)
 
 // Menu and accelerator IDs from the pinned 0.16 resource.rh2.
 constexpr UINT leftName = 688, rightName = 694, activeName = 700;
+constexpr UINT leftCustom = 2860, rightCustom = 2892, customCount = 32;
 constexpr DWORD nativeOrders[] = {EVERYTHING_SORT_NAME_ASCENDING, EVERYTHING_SORT_EXTENSION_ASCENDING,
                                   EVERYTHING_SORT_DATE_MODIFIED_ASCENDING, EVERYTHING_SORT_SIZE_ASCENDING};
 bool settingHostOrder = false;
@@ -46,7 +47,7 @@ DWORD ClickOrder(CPluginFSInterfaceAbstract* fs, DWORD ascending)
 
 // Ask the pinned host to populate its own Sort By submenu without opening it.
 // Its checked command identifies the actual header, even for a one-row page.
-DWORD CheckedNativeSort(int panel)
+DWORD CheckedNativeSort(int panel, UINT customCommand = 0)
 {
     auto* menu = gGUI->CreateMenuPopup();
     if (!menu) return 0;
@@ -56,6 +57,8 @@ DWORD CheckedNativeSort(int panel)
     MENU_ITEM_INFO item{};
     item.Mask = MENU_MASK_STATE;
     DWORD result = 0;
+    if (customCommand && menu->GetItemInfo(customCommand, FALSE, &item) && (item.State & MENU_STATE_CHECKED))
+        result = customCommand;
     for (UINT i = 0; i < std::size(nativeOrders); ++i) {
         if (menu->GetItemInfo((left ? leftName : rightName) + i, FALSE, &item) &&
             (item.State & MENU_STATE_CHECKED)) {
@@ -111,6 +114,16 @@ bool HandleNativeSortCommand(UINT command)
     if (settingHostOrder) return false;
     int panel;
     UINT first;
+    if (command >= leftCustom && command < rightCustom + customCount) {
+        panel = command < rightCustom ? PANEL_LEFT : PANEL_RIGHT;
+        auto* fs = gGeneral->GetPanelPluginFS(panel);
+        if (!IsResultsFS(fs)) return false;
+        const auto order = CustomMenuOrder(gGeneral->GetPanelPluginData(panel),
+                                           command - (panel == PANEL_LEFT ? leftCustom : rightCustom));
+        if (!order) return false;
+        SetResultSort(fs, ClickOrder(fs, order));
+        return true;
+    }
     if (command >= leftName && command < leftName + 4) { panel = PANEL_LEFT; first = leftName; }
     else if (command >= rightName && command < rightName + 4) { panel = PANEL_RIGHT; first = rightName; }
     else if (command >= activeName && command < activeName + 4) { panel = PANEL_SOURCE; first = activeName; }
@@ -131,7 +144,7 @@ void ApplyNativeOrder(HWND frame, int panel)
 {
     auto* fs = gGeneral->GetPanelPluginFS(panel);
     auto& previous = applied[panel == PANEL_RIGHT];
-    if (!IsResultsFS(fs) || UsesRankedNames(GetResultSort(fs))) {
+    if (!IsResultsFS(fs)) {
         previous = {};
         return;
     }
@@ -139,6 +152,24 @@ void ApplyNativeOrder(HWND frame, int panel)
     auto* listing = gGeneral->GetPanelPluginData(panel);
     const auto sort = GetResultSort(fs);
     if (!TakeNativeOrderUpdate(listing, sort)) return;
+    if (UsesRankedNames(sort)) {
+        for (UINT index = 0; index < customCount; ++index) {
+            const auto order = CustomMenuOrder(listing, index);
+            if (!order || (sort != order && sort != order + 1)) continue;
+            const UINT command = (panel == PANEL_LEFT ? leftCustom : rightCustom) + index;
+            const bool checked = CheckedNativeSort(panel, command) == command;
+            if (checked && previous.fs == fs && previous.sort == sort) return;
+            settingHostOrder = true;
+            if (checked) SendMessageW(frame, WM_COMMAND, panel == PANEL_LEFT ? leftName : rightName, 0);
+            SendMessageW(frame, WM_COMMAND, command, 0);
+            if (sort != order) SendMessageW(frame, WM_COMMAND, command, 0);
+            settingHostOrder = false;
+            previous = {fs, sort};
+            return;
+        }
+        previous = {};
+        return;
+    }
     const auto ascending = (sort & 1) ? sort : sort - 1;
     const auto i = std::find(std::begin(nativeOrders), std::end(nativeOrders), ascending);
     if (i == std::end(nativeOrders)) return;
@@ -185,6 +216,10 @@ void StopObservingResultHeader(HWND header)
 void ApplyRankedOrder(HWND frame, CPluginFSInterfaceAbstract* fs)
 {
     if (!UsesRankedNames(GetResultSort(fs)) || !IsListingCurrent(fs)) return;
+    // A visible custom sort column supplies the SDK rank as its native sort key.
+    // Name and the filtered rank fallback are only needed for a hidden key.
+    const auto& current = applied[gGeneral->GetSourcePanel() == PANEL_RIGHT];
+    if (current.fs == fs && current.sort == GetResultSort(fs)) return;
     // The immutable page stores its rows contiguously in SDK order. Samandarin
     // may have retained a reverse or custom native sort from the previous view.
     // CM_ACTIVENAME selects Name ascending, or toggles it if already selected.
@@ -197,7 +232,9 @@ void ApplyRankedOrder(HWND frame, CPluginFSInterfaceAbstract* fs)
             // column. Supply its private numeric sort key only for this sort.
             const UINT command = gGeneral->GetSourcePanel() == PANEL_LEFT ? 2860 : 2892;
             SetRankingFilteredRows(true);
+            settingHostOrder = true;
             SendMessageW(frame, WM_COMMAND, command, 0);
+            settingHostOrder = false;
             SetRankingFilteredRows(false);
         } else {
             settingHostOrder = true;

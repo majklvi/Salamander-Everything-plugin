@@ -325,6 +325,33 @@ void CheckMetadata()
     listing.data->SetupView(TRUE, &view, nullptr, nullptr);
     const auto& file = listing.files[0];
     const auto& empty = listing.files[1];
+    Check(CustomMenuOrder(listing.data, 4) == leastOpenedSort &&
+          CustomMenuOrder(listing.data, 7) == EVERYTHING_SORT_PATH_ASCENDING,
+          "Run count and Parent folder have distinct native custom sort commands");
+    for (unsigned direction : {0u, 1u}) {
+        SearchReply reply{};
+        for (unsigned i = 0; i < 40; ++i)
+            reply.properties.push_back({L"test", L"Test", firstPropertyOrder + 2 * i});
+        const auto selected = reply.properties.back().order;
+        reply.key.sort = selected + direction;
+        reply.hits = {full, zero};
+        auto page = std::make_shared<ResultPage>(std::move(reply));
+        TestDirectory custom;
+        Check(ListResultPage(page, &custom, custom.data), "listed a ranked property page");
+        TestView properties;
+        custom.data->SetupView(TRUE, &properties, nullptr, nullptr);
+        Check(CustomMenuOrder(custom.data, 31) == selected, "a late property has a native header command");
+        auto col = std::find_if(properties.columns.begin(), properties.columns.end(),
+            [&](const CColumn& c) { return BaseColumn(c.CustomData) == selected; });
+        Check(col != properties.columns.end(), "the selected property remains visible");
+        col->CustomData |= sortKeyFlag;
+        int index = static_cast<int>(col - properties.columns.begin());
+        auto firstKey = std::stoul(properties.Cell(index, custom.files[0]));
+        auto secondKey = std::stoul(properties.Cell(index, custom.files[1]));
+        Check(direction ? firstKey > secondKey : firstKey < secondKey,
+              "native header direction preserves the SDK rank of equal property values");
+    }
+    listing.data->SetupView(TRUE, &view, nullptr, nullptr);
     Check(view.columns.size() == 12 && view.columns.back().SupportSorting &&
           view.Cell(11, file) == R"(C:\meta)", "Parent folder is available on request");
     Check(view.columns[1].ID == COLUMN_ID_EXTENSION && view.columns[2].ID == COLUMN_ID_SIZE &&

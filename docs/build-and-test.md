@@ -220,6 +220,12 @@ In Open Samandarin 0.16 x64, pressing Tab from the left query field activated th
 
 The result-listing regression builds a page with two identically named files in different locations and two directories. With hiding enabled, the confirmed missing file and directory are omitted. The available namesake and the directory with an inconclusive check remain visible. Clearing the preference restores all four rows from the same page.
 
+### Sort arrows on Everything columns
+
+In Open Samandarin 0.16 x64 with Everything 1.5, the query `exact:salamand.exe` returned seven files. Clicking Parent folder moved the arrow from Name to Parent folder. A second click reversed the arrow and the directory order. After enabling Run count, the first click on its header moved the arrow there and pointed it down (most opened first). The second click pointed it up (least opened first). All seven counts were zero, so this live case verified the indicator and status text for tied values.
+
+The result identity regression also checks both native sort-key directions for a dynamic property with equal values and more than 32 displayed custom columns. Samandarin exposes 32 custom sort commands per side. A selected property beyond that range moves to the last addressable custom column so the host can indicate its order.
+
 ### Scrolling away from the focused result
 
 In Open Samandarin 0.16 x64, the query `ext:dll` returned 506 results. With Name sorted ascending and the first `7z.dll` focused, scrolling with the mouse wheel brought `api-ms-win-core-interlocked-l1-1-0.dll` to the top of the viewport. It stayed there after a pause and after Ctrl+R refreshed the listing. Pressing Down then moved focus to the second `7z.dll` near the start of the list, confirming that scrolling had preserved the original keyboard focus.

@@ -237,6 +237,17 @@ void WINAPI ColumnText()
     const DWORD raw = *transferColumn;
     if (collectingHeaderSort && (raw & sortKeyFlag)) observedColumnSort = HeaderColumnSort(raw);
     const DWORD column = BaseColumn(raw);
+    if (row && (raw & sortKeyFlag) && UsesRankedNames(row->owner->sort) && !rankingFilteredRows) {
+        const unsigned ascending = HeaderColumnSort(raw);
+        const unsigned sort = row->owner->sort;
+        if (ascending && (sort == ascending || sort == ascending + 1)) {
+            // The native header controls direction. Preserve Everything's exact
+            // order, including ties, when the host sorts this page locally.
+            const auto key = sort == ascending ? row->rank : UINT_MAX - row->rank;
+            *transferLength = sprintf_s(transferBuffer, TRANSFER_BUFFER_MAX, "%u", key);
+            return;
+        }
+    }
     if (row && (column == rankColumn || (rankingFilteredRows && (raw & sortKeyFlag)))) {
         *transferLength = sprintf_s(transferBuffer, TRANSFER_BUFFER_MAX, "%u", row->rank);
         return;
@@ -287,7 +298,8 @@ void WINAPI ColumnText()
 struct ColumnWidth { unsigned width = 0; bool fixed = false; };
 std::map<DWORD, ColumnWidth> columnWidths[2];
 
-void InsertResultColumn(CSalamanderViewAbstract* view, BOOL left, DWORD id, const char* title, bool numeric)
+void InsertResultColumn(CSalamanderViewAbstract* view, BOOL left, DWORD id, const char* title, bool numeric,
+                        int index = -1)
 {
     const auto& width = columnWidths[left != FALSE][id];
     CColumn column{};
@@ -300,7 +312,7 @@ void InsertResultColumn(CSalamanderViewAbstract* view, BOOL left, DWORD id, cons
     column.SupportSorting = TRUE;
     column.FixedWidth = width.fixed;
     column.Width = width.width;
-    view->InsertColumn(view->GetColumnsCount(), &column);
+    view->InsertColumn(index < 0 ? view->GetColumnsCount() : index, &column);
 }
 
 class ListingData final : public CPluginDataInterfaceAbstract {
@@ -315,8 +327,11 @@ public:
     bool filtered = false;
     unsigned hiddenMissing = 0;
     bool nativeOrderApplied = false;
+    std::vector<unsigned> customOrders;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
+        customOrders.clear();
+        nativeOrderApplied = false;
         DWORD* rowData;
         view->GetTransferVariables(transferFile, transferIsDir, transferBuffer, transferLength, rowData, transferListing, transferColumn);
         view->SetPluginSimpleIconCallback(PlaceholderIndex);
@@ -347,13 +362,31 @@ public:
         }
         if (page) for (const auto& property : page->properties) {
             const auto title = DisplayText(property.title, sizeof(CColumn::Name) - 1);
-            InsertResultColumn(view, left, property.order, title.c_str(), false);
+            int position = -1;
+            // The host has 32 custom sort commands per panel. Keep even a
+            // late property addressable when it becomes the selected order.
+            if (page->sort == property.order || page->sort == property.order + 1) {
+                int sortable = 0;
+                for (int i = 0; i < view->GetColumnsCount(); ++i) {
+                    const auto* col = view->GetColumn(i);
+                    if (col->ID == COLUMN_ID_CUSTOM && col->SupportSorting && ++sortable == 32) {
+                        position = i;
+                        break;
+                    }
+                }
+            }
+            InsertResultColumn(view, left, property.order, title.c_str(), false, position);
         }
         bool hasCustom = false;
         for (int i = 1; i < view->GetColumnsCount(); ++i)
             hasCustom |= view->GetColumn(i)->ID == COLUMN_ID_CUSTOM;
         if (filteredRanks && !hasCustom)
             InsertResultColumn(view, left, rankColumn, "Rank", true);
+        for (int i = 0; i < view->GetColumnsCount(); ++i) {
+            const auto* col = view->GetColumn(i);
+            if (col->ID == COLUMN_ID_CUSTOM && col->SupportSorting)
+                customOrders.push_back(HeaderColumnSort(col->CustomData | sortKeyFlag));
+        }
         ConfigureLabels(view, left);
     }
 
@@ -607,6 +640,13 @@ bool HasFilteredRanks(CPluginDataInterfaceAbstract* data)
 void SetRankingFilteredRows(bool enabled)
 {
     rankingFilteredRows = enabled;
+}
+
+unsigned CustomMenuOrder(CPluginDataInterfaceAbstract* data, unsigned index)
+{
+    if (!data) return 0;
+    const auto& orders = static_cast<ListingData*>(data)->customOrders;
+    return index < orders.size() ? orders[index] : 0;
 }
 
 void BeginHeaderSortObservation()

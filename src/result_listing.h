@@ -43,6 +43,7 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page,
                     bool panelFilter = false, const std::wstring& filterName = {});
 bool TakeNativeOrderUpdate(CPluginDataInterfaceAbstract* data, unsigned sort);
 bool HasFilteredRanks(CPluginDataInterfaceAbstract* data);
+unsigned CustomMenuOrder(CPluginDataInterfaceAbstract* data, unsigned index);
 void SetRankingFilteredRows(bool enabled);
 const ResultPage* GetListingPage(CPluginDataInterfaceAbstract* data);
 const SearchHit* FindResultHit(const ResultPage* page, const CFileData* file);
