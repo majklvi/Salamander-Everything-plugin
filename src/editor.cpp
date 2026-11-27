@@ -383,6 +383,13 @@ LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
     if (msg == WM_IME_STARTCOMPOSITION) binding.composing = true;
     if (msg == WM_IME_ENDCOMPOSITION) binding.composing = false;
     const bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    if (msg == WM_KEYDOWN && wp == VK_F3 && (GetKeyState(VK_SHIFT) & 0x8000) &&
+        !control && !(GetKeyState(VK_MENU) & 0x8000) && !binding.composing &&
+        binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs) {
+        if (!(lp & (1L << 30)))
+            gGeneral->PostMenuExtCommand(openContainingFolder, FALSE);
+        return 0;
+    }
     const bool back = msg == WM_SYSKEYDOWN && wp == VK_LEFT && (lp & (1L << 29)) && !control;
     const bool filter = msg == WM_KEYDOWN && wp == VK_F12 && control && !(GetKeyState(VK_MENU) & 0x8000);
     if ((back || filter) && !(GetKeyState(VK_SHIFT) & 0x8000) &&

@@ -2,7 +2,7 @@
 
 Everything Search 0.4.2 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches from the selected Everything instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
 
-Enable **Parent folder** to distinguish identical names. Press **Enter** on a result to open it, or use **Open containing folder** to select it in a disk panel. [File action and sort tests](docs/milestone-4.md)
+Enable **Parent folder** to distinguish identical names. Press **Enter** on a result to open it, or press **Shift+F3** to open its containing folder in the same panel and focus the item. [File action and sort tests](docs/milestone-4.md)
 
 Use **F3** to view a result and **F4** to edit it. **F5** copies, **F6** moves and **F8/Del** deletes the marked items. Right-click a result for its menu. These operations preserve the Everything run count. [File operations and verification](docs/result-metadata.md#file-operations-in-search-results)
 

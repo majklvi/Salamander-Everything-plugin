@@ -79,7 +79,7 @@ bool OpenDiskFolder(int panel, const fs::path& directory)
     return gGeneral->ChangePanelPathToDisk(panel, utf8.c_str()) != FALSE;
 }
 
-bool SelectDiskTarget(int panel, const fs::path& target)
+bool FocusDiskTarget(int panel, const fs::path& target)
 {
     CSalamanderServiceQuery query{SALAMANDER_SERVICE_PANEL_ITEM_PATHS,
                                   SALAMANDER_PANEL_ITEM_PATHS_VERSION_1_0, 0};
@@ -94,10 +94,7 @@ bool SelectDiskTarget(int panel, const fs::path& target)
             continue;
         if (DiskSpelling(path.data()) != target.native())
             continue;
-        gGeneral->SelectAllPanelItems(panel, FALSE, FALSE);
-        gGeneral->SelectPanelItem(panel, row, TRUE);
         gGeneral->SetPanelFocusedItem(panel, row, FALSE);
-        gGeneral->RepaintChangedItems(panel);
         return true;
     }
     return false;
@@ -140,7 +137,7 @@ void RevealResult(int panel, const SearchHit& hit)
         return;
     }
     gGeneral->SetUserWorkedOnPanelPath(panel);
-    if (OpenDiskFolder(panel, parent) && !SelectDiskTarget(panel, target))
+    if (OpenDiskFolder(panel, parent) && !FocusDiskTarget(panel, target))
         Report(L"The item is not visible in the open disk panel.", target.native());
 }
 using Microsoft::WRL::ComPtr;

@@ -4,7 +4,7 @@ Open Samandarin opened and selected the intended copy of two identically named f
 
 ## Using the results
 
-In Detailed view, use **Name** and **Parent folder** together to choose a result. **Down** moves from the search field into the results. With a result focused, **Enter** opens a file with its Windows association or navigates the same Samandarin panel to a directory. **Plugins → Everything Search → Open containing folder** navigates the source panel to the item's parent, puts the caret on the corresponding disk entry and marks it selected.
+In Detailed view, use **Name** and **Parent folder** together to choose a result. **Down** moves from the search field into the results. With a result focused, **Enter** opens a file with its Windows association or navigates the same Samandarin panel to a directory. **Plugins → Everything Search → Open containing folder** navigates the source panel to the item's parent and places the caret on the corresponding disk entry.
 
 Each row carries its original UTF-16 name, full path and file or folder type. Opening, revealing and restoring selection use this stored identity. The listing owns the row data through native sorting and refresh. A user can act on a result only while it belongs to the filesystem's current listing. Windows may report that a target has disappeared or changed type since Everything indexed it. [Listing implementation](../src/result_listing.cpp) · [File actions](../src/actions.cpp)
 
@@ -84,6 +84,6 @@ The stock 0.16 SDK has no getter or notification for the native header's sort di
 ## Reproduce with another index
 
 1. In two indexed directories, create text files with the same basename and different contents. Search for `exact:` followed by that basename. Use **Parent folder** to choose each row, press Enter and read its contents in the associated application.
-2. Open the search again and choose **Open containing folder** for each copy. Check the disk panel's full directory path, caret and selected mark. If testing refresh, mark one copy, refresh the results, and verify the chosen parent before invoking the command.
+2. Open the search again and choose **Open containing folder** for each copy. Check the disk panel's full directory path, caret and absence of a selection mark. If testing refresh, mark one copy, refresh the results, and verify the chosen parent before invoking the command.
 3. Choose a file-only query with at least 400 distinct names. In Everything SDK v2, request offset 0, limit 200 and Name ascending, then repeat with Name descending. Record the *full paths* of both reference pages, including the first result of each.
 4. Run the same query in the plugin. Compare the status count and the visible leading rows before and after reversing the Name header. An entry from outside the original 200 demonstrates a new page. Use **Query order** to request a particular page explicitly when the current data does not distinguish the native header order.

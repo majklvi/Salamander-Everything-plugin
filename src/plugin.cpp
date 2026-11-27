@@ -21,7 +21,6 @@ bool UseHostDarkTheme()
 namespace {
 
 constexpr int openSearch = 1;
-constexpr int openContainingFolder = 2;
 constexpr int settingsCommand = 5;
 char fsName[MAX_PATH]{};
 constexpr char columnsSetting[] = "ResultColumnsV2";

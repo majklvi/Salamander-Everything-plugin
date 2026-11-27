@@ -2,10 +2,12 @@
 
 #include <array>
 #include <iterator>
+#include <string_view>
 #include <memory>
 #include "plugin.h"
 #include "search.h"
 
+std::string DisplayText(std::wstring_view text, size_t limit);
 void BeginHeaderSortObservation();
 unsigned EndHeaderSortObservation();
 

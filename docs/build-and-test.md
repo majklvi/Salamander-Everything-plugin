@@ -37,7 +37,7 @@ The x64 Release plugin was tested in the main window of an isolated 0.16 install
 | Switch with Tab | From the edit, Tab focused the right disk panel. A second Tab returned to the left results list with the query intact. |
 | Go back while typing | After resuming the edit and appending `s`, the focused field contained `exact:salamand.exe file:s`. A single Alt+Left returned to the original disk folder, `out\host-test\left`, with the left list focused and the search field gone. |
 
-With a result focused in the list, **Enter** opens that file or navigates into that directory. Use **Plugins → Everything Search → Open containing folder** to select the item in its parent disk folder. **Plugins → Everything Search → Settings… → Current search order** selects which 200 results Everything returns. Choose any result column and use the **Descending** checkbox to reverse its order. For most opened first, choose **Run count** and check **Descending**. [Run-count ordering and live tests](result-metadata.md#most-opened-first) · [Ordering and row identity](milestone-4.md)
+With a result focused in the list, **Enter** opens that file or navigates into that directory. Use **Plugins → Everything Search → Open containing folder** to focus the item in its parent disk folder. **Plugins → Everything Search → Settings… → Current search order** selects which 200 results Everything returns. Choose any result column and use the **Descending** checkbox to reverse its order. For most opened first, choose **Run count** and check **Descending**. [Run-count ordering and live tests](result-metadata.md#most-opened-first) · [Ordering and row identity](milestone-4.md)
 
 To change which file details appear, use **Plugins → Everything Search → Settings…**. A check mark means the column is enabled in all Everything Search panels. A fresh profile shows Name and Date modified. Date modified, Date created and Date accessed can be enabled independently. Size, Parent folder and the remaining fields are opt-in. Choose **OK** to apply the selected columns to open searches. Samandarin saves the choice with its configuration. [Column descriptions and examples](result-metadata.md)
 
@@ -83,3 +83,11 @@ Open Samandarin 0.16 x64 used the portable Everything 1.4.1.1032 instance `dual-
 | Choose the built-in **Executable** filter. | The panel showed **1 of 1** and listed only `everything.exe`. |
 | Choose the custom **QA files** filter with the expression `ext:lng`. | The panel showed **1 of 1** and listed only `Everything.lng`. |
 | With the panel open, edit the same CSV entry to `ext:ini;db` and reopen Ctrl+F12. | The dropdown retained **QA files** and immediately displayed its new expression. Pressing Enter applied it without reselecting the filter. The panel showed **2 of 2** and listed `Everything-dual-plugin-qa.ini` and `Everything-dual-plugin-qa.db`. |
+
+### Active filter in the panel title
+
+In Open Samandarin 0.16 x64 with Everything 1.4.1.1032, selecting the custom **QA files** filter updated the directory line and tab caption to `everything:\QA files`. Switching to the built-in **Folder** filter changed both to `everything:\Folder`. Choosing **Do not use filter** restored `everything:\`. All three changes appeared immediately after confirming Ctrl+F12.
+
+### Shift+F3 opens the containing folder
+
+In Open Samandarin 0.16 x64, pressing Shift+F3 from the query field with the single result `everything.exe` opened `out\dual-test-14` in the same panel. The caret rested on `everything.exe`. The row was unmarked and the status line displayed the file details.

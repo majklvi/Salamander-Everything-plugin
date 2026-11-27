@@ -6,8 +6,6 @@
 #include <cstring>
 #include <string_view>
 
-namespace {
-
 // The 0.16 SDK deliberately discards CFileData::NameW in AddFile/AddDir.
 // Escape unrepresentable characters and truncate at a character boundary.
 std::string DisplayText(std::wstring_view text, size_t limit)
@@ -41,6 +39,8 @@ std::string DisplayText(std::wstring_view text, size_t limit)
     }
     return result;
 }
+
+namespace {
 
 std::wstring_view ParentOf(const SearchHit& hit)
 {

@@ -16,6 +16,7 @@
 extern CSalamanderGeneralAbstract* gGeneral;
 extern HINSTANCE gInstance;
 
+constexpr int openContainingFolder = 2;
 bool UseHostDarkTheme();
 void ShowSearchSettings(HWND parent);
 void ShowEditorForActivePanel();

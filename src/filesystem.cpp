@@ -24,6 +24,11 @@ bool IsRoot(const char* path) {
     return path && (*path == '\0' || std::strcmp(path, "\\") == 0);
 }
 
+// Samandarin builds its directory line from the filesystem's current path.
+std::string FilterPath(const EverythingFilter& filter) {
+    return "\\" + DisplayText(filter.name, MAX_PATH - 2);
+}
+
 struct PanelSelection {
     std::wstring caret;
     bool caretIsDirectory = false;
@@ -202,7 +207,9 @@ public:
         return true;
     }
 
-    BOOL WINAPI GetCurrentPath(char* path) override { return GetRootPath(path); }
+    BOOL WINAPI GetCurrentPath(char* path) override {
+        return SUCCEEDED(StringCchCopyA(path, MAX_PATH, FilterPath(filter).c_str()));
+    }
     BOOL WINAPI GetRootPath(char* path) override {
         path[0] = '\\';
         path[1] = '\0';
@@ -213,25 +220,44 @@ public:
     }
     BOOL WINAPI GetFullFSPath(HWND, const char*, char*, int, BOOL&) override { return FALSE; }
     BOOL WINAPI IsCurrentPath(int currentName, int name, const char* path) override {
-        return currentName == name && IsRoot(path);
+        return currentName == name && path && (filter.name.empty() ? IsRoot(path) : FilterPath(filter) == path);
     }
     BOOL WINAPI IsOurPath(int currentName, int name, const char*) override {
         return currentName == name;
     }
     BOOL WINAPI ChangePath(int currentName, char*, int name, const char* path,
                            char* cutName, BOOL* wasCut, BOOL, int mode) override {
+        if (currentName != name || !path) return FALSE;
         const bool root = IsRoot(path);
+        bool recognized = root || IsCurrentPath(currentName, name, path);
+        EverythingFilter target = filter;
+        if (root) target = {};
+        if (!recognized) {
+            for (const auto& candidate : FilterCatalog()) {
+                if (FilterPath(candidate) == path) {
+                    recognized = true;
+                    target = candidate;
+                    break;
+                }
+            }
+        }
         if (cutName)
             *cutName = '\0';
         if (wasCut)
-            *wasCut = !root;
+            *wasCut = !recognized;
         // After ListCurrentPath fails the SDK retries ChangePath. The root has
         // no accessible parent to offer, so let the host recover.
         if (listingFailed) {
             listingFailed = false;
             return FALSE;
         }
-        return currentName == name && path && (root || mode != 3);
+        if (!recognized && mode == 3) return FALSE;
+        if (!recognized) target = {};
+        if (target.name != filter.name || target.expression != filter.expression) {
+            filter = std::move(target);
+            Filter(query, true);
+        }
+        return TRUE;
     }
     BOOL WINAPI ListCurrentPath(CSalamanderDirectoryAbstract* listing,
                                 CPluginDataInterfaceAbstract*& data, int& icons, BOOL) override {
@@ -280,7 +306,7 @@ public:
 
     DWORD WINAPI GetSupportedServices() override {
         return FS_SERVICE_VIEWFILE | FS_SERVICE_CONTEXTMENU | FS_SERVICE_COPYFROMFS |
-               FS_SERVICE_MOVEFROMFS | FS_SERVICE_DELETE;
+               FS_SERVICE_MOVEFROMFS | FS_SERVICE_DELETE | FS_SERVICE_OPENACTIVEFOLDER;
     }
 
     std::vector<SearchHit> SelectedHits(int count) {
@@ -369,7 +395,11 @@ public:
         return ForwardResultMenuMessage(msg, wp, lp, result);
     }
     BOOL WINAPI OpenFindDialog(const char*, int) override { return FALSE; }
-    void WINAPI OpenActiveFolder(const char*, HWND) override {}
+    void WINAPI OpenActiveFolder(const char*, HWND) override {
+        // Changing to disk can close this filesystem. Let the host finish its callback first.
+        if (gGeneral->GetPanelPluginFS(PANEL_SOURCE) == this)
+            gGeneral->PostMenuExtCommand(openContainingFolder, FALSE);
+    }
     void WINAPI GetAllowedDropEffects(int, const char*, DWORD* effects) override {
         if (effects)
             *effects = DROPEFFECT_NONE;

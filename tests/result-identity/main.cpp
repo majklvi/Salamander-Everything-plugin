@@ -17,6 +17,11 @@ SearchHit opened;
 #include "../../src/filesystem.cpp"
 #undef gGeneral
 
+const std::vector<EverythingFilter>& FilterCatalog() {
+    static const std::vector<EverythingFilter> filters{{L"Documents", L"ext:pdf | ext:txt"}};
+    return filters;
+}
+
 void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
 void SubmitSearch(SearchKey key, const std::wstring& text) { submitted = key; submittedText = text; }
@@ -57,6 +62,10 @@ void RunChecks()
     auto* fs = provider->OpenFS("everything", 0);
     if (!fs) throw std::runtime_error("OpenFS failed");
     testHost.active = fs;
+    Check((fs->GetSupportedServices() & FS_SERVICE_OPENACTIVEFOLDER) != 0,
+          "Shift+F3 is available in the result panel");
+    fs->OpenActiveFolder("everything", nullptr);
+    Check(testHost.postedCommand == openContainingFolder, "Shift+F3 posts the containing-folder command");
 
     const SearchHit alpha{L"report.pdf", LR"(C:\Alpha\report.pdf)", false};
     const SearchHit beta{L"report.pdf", LR"(C:\Beta\report.pdf)", false};
@@ -203,6 +212,9 @@ void RunChecks()
     Check(submittedText == L"ext:pdf | ext:txt", "a filter works with an empty query");
     RefreshSourceSettings();
     Check(submittedText == L"ext:pdf | ext:txt", "refresh retains the saved filter");
+    char filterPath[MAX_PATH]{};
+    Check(fs->GetCurrentPath(filterPath) && std::string_view(filterPath) == "\\Documents" &&
+          fs->IsCurrentPath(0, 0, filterPath), "active filter is visible in the panel path");
     SetQuery(fs, L"next");
     SetEverythingFilter(fs, {});
     Check(submittedText == L"next", "switching back to native filters restores the typed query");
