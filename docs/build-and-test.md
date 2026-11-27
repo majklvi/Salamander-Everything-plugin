@@ -4,7 +4,7 @@ Everything Search 0.4.2 is a native x64 filesystem plugin for Open Samandarin 0.
 
 ## Build
 
-Use Windows x64 with Visual Studio 2026, its Desktop development with C++ workload, a Windows SDK and CMake 4.2 or later for the Visual Studio 2026 generator. Run these PowerShell commands from the plugin repository. The checkout supplies the headers. CMake checks the contents of the six headers against the pinned revision. [Visual Studio generator](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2018%202026.html) · [Upstream native plugin SDK](https://github.com/KRtkovo-eu-AI/salamander/tree/7382688b9ba1c9471a27b19f36beba65825b2940/src/plugins/shared)
+Use Windows x64 with Visual Studio 2026, its Desktop development with C++ workload, a Windows SDK and CMake 4.2 or later for the Visual Studio 2026 generator. Run these PowerShell commands from the plugin repository. The checkout supplies the headers. CMake checks the contents of the seven headers against the pinned revision. [Visual Studio generator](https://cmake.org/cmake/help/latest/generator/Visual%20Studio%2018%202026.html) · [Upstream native plugin SDK](https://github.com/KRtkovo-eu-AI/salamander/tree/7382688b9ba1c9471a27b19f36beba65825b2940/src/plugins/shared)
 
 ```powershell
 git clone --filter=blob:none --sparse --branch 5.0-samandarin-0.16 https://github.com/KRtkovo-eu-AI/salamander.git out/samandarin
@@ -18,6 +18,10 @@ cmake --build out/build --config Release --target EverythingSearch --parallel 1
 If you already have the pinned headers, set `$sdk` to that directory and run the last two commands. The loadable file is **`out/build/Release/EverythingSearch.spl`**.
 
 ## Install and open
+
+### Plugins menu icon
+
+Open Samandarin 0.16 x64 loaded the same Release plugin in three isolated profiles. With both Everything versions running, the **Everything Search** entry in the **Plugins** menu showed an orange magnifier for the explicit 1.4.1.1032 source and a red-orange magnifier for the explicit 1.5.0.1424b source. A third profile explicitly selected 1.4 and loaded the plugin after the portable 1.4 instance exited. The menu entry had no icon even though 1.5 was still running.
 
 1. Copy the `.spl` to a directory where it can stay. In the x64 host, open **Plugins → Plugins Manager**, choose **Add**, and select the file. [Open Samandarin 0.16 release](https://github.com/KRtkovo-eu-AI/salamander/releases/tag/5.0-samandarin-0.16)
 2. Activate the desired panel. Use **Detailed** view with its column headings visible and invoke **Plugins → Everything Search → Open search**. The empty field invites you to type. To move an existing search into its own window, detach its unlocked tab or detach the right panel. [Detached panel instructions](milestone-2.md#reproduce-the-first-click-test)

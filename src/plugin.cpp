@@ -3,6 +3,8 @@
 #include "search.h"
 #include "actions.h"
 #include "metadata_columns.h"
+#include "modern_search.h"
+#include "spl_gui.h"
 
 int SalamanderVersion = 0;
 HINSTANCE gInstance = nullptr;
@@ -25,6 +27,42 @@ constexpr int settingsCommand = 5;
 constexpr int helpCommand = 6;
 char fsName[MAX_PATH]{};
 constexpr char columnsSetting[] = "ResultColumnsV2";
+CSalamanderGUIAbstract* gui = nullptr;
+
+HICON LoadSourceIcon()
+{
+    const auto sources = DiscoverSources();
+    HWND endpoint = sources.UseModern(preferredSource) ? sources.modern : sources.stable;
+    DWORD pid = 0;
+    if (!endpoint || !GetWindowThreadProcessId(endpoint, &pid)) return nullptr;
+    HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!process) return nullptr;
+    std::wstring path(32768, L'\0');
+    DWORD length = static_cast<DWORD>(path.size());
+    const BOOL found = QueryFullProcessImageNameW(process, 0, path.data(), &length);
+    CloseHandle(process);
+    HICON icon = nullptr;
+    if (found)
+        SHDefExtractIconW(path.c_str(), 0, 0, &icon, nullptr, 16);
+    return icon;
+}
+
+void RegisterMenuIcon(CSalamanderConnectAbstract* host)
+{
+    HICON icon = LoadSourceIcon();
+    if (!icon) return;
+    auto* list = gui->CreateIconList();
+    if (list) {
+        if (list->Create(16, 16, 1) && list->ReplaceIcon(0, icon)) {
+            host->SetIconListForGUI(list);
+            host->SetPluginIcon(0);
+            host->SetPluginMenuAndToolbarIcon(0);
+        } else {
+            gui->DestroyIconList(list);
+        }
+    }
+    DestroyIcon(icon);
+}
 
 bool FocusedHit(SearchHit& hit)
 {
@@ -81,6 +119,7 @@ public:
                     "Everything Search", MB_OK | MB_ICONINFORMATION);
     }
     void WINAPI Connect(HWND, CSalamanderConnectAbstract* host) override {
+        RegisterMenuIcon(host);
         host->AddMenuItem(-1, "&Open search", SALHOTKEY('E', HOTKEYF_CONTROL | HOTKEYF_SHIFT), openSearch, FALSE,
                           MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
         host->AddMenuItem(-1, "Open &containing folder", 0, openContainingFolder, TRUE,
@@ -185,6 +224,7 @@ extern "C" CPluginInterfaceAbstract* WINAPI SalamanderPluginEntry(CSalamanderPlu
         return nullptr;
     }
     gGeneral = host->GetSalamanderGeneral();
+    gui = host->GetSalamanderGUI();
     gGeneral->SetHelpFileName("EverythingSearch.chm");
     gGeneral->GetPluginFSName(fsName, 0);
     RefreshFilterCatalog();

@@ -59,7 +59,7 @@ BOOL CALLBACK FindEndpoint(HWND hwnd, LPARAM data)
         sources.stableInstance = instance;
     }
     if (minor == 5 && (!sources.modern || instance.empty())) {
-        sources.modern = true;
+        sources.modern = hwnd;
         sources.modernInstance = std::move(instance);
     }
     return TRUE;

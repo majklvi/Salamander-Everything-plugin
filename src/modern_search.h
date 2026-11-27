@@ -4,7 +4,7 @@
 
 struct Sources {
     HWND stable = nullptr;
-    bool modern = false;
+    HWND modern = nullptr;
     std::wstring modernInstance;
     std::wstring stableInstance;
     bool UseModern(Source preference) const {
