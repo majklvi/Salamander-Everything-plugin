@@ -12,6 +12,7 @@ struct SearchHit;
 // Accessed on the host's UI thread. The returned query belongs to its live FS.
 CPluginInterfaceForFSAbstract* GetFilesystemProvider();
 bool HasOpenResultsFS();
+void RefreshSourceSettings();
 bool IsResultsFS(CPluginFSInterfaceAbstract* fs);
 bool IsListingCurrent(CPluginFSInterfaceAbstract* fs);
 const std::wstring& GetQuery(CPluginFSInterfaceAbstract* fs);

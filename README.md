@@ -1,6 +1,6 @@
 # Everything search in an Open Samandarin panel
 
-Everything Search 0.4.2 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches from the running default instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
+Everything Search 0.4.2 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches from the selected Everything instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
 
 Enable **Parent folder** to distinguish identical names. Press **Enter** on a result to open it, or use **Open containing folder** to select it in a disk panel. [File action and sort tests](docs/milestone-4.md)
 
@@ -8,7 +8,7 @@ Use **F3** to view a result and **F4** to edit it. **F5** copies, **F6** moves a
 
 ## Development
 
-Each search tab keeps its query when the tab or the whole right panel moves into a separate window. Queries use the Unicode Everything SDK v2. Milestone 4 covers full-path actions, selection across refreshes and ordering queries larger than one page. [Development plan](docs/development-plan.md) · [Detached-window tests](docs/milestone-2.md) · [Live query tests](docs/milestone-3.md)
+Each search tab keeps its query when the tab or the whole right panel moves into a separate window. Queries use SDK v2 for Everything 1.4 and SDK 3 for Everything 1.5. **Settings → Everything source** selects the version. Automatic prefers a running 1.4 instance. Version 1.5 also supplies a searchable list of additional display properties and a dynamic sort menu. Milestone 4 covers full-path actions, selection across refreshes and ordering queries larger than one page. [Development plan](docs/development-plan.md) · [Detached-window tests](docs/milestone-2.md) · [Live query tests](docs/milestone-3.md)
 
 ## Recommendation
 

@@ -1,6 +1,8 @@
 #pragma once
 
 #include "metadata_columns.h"
+#include "properties.h"
+#include <map>
 
 #include <cstdint>
 #include <optional>
@@ -24,10 +26,15 @@ struct SearchKey {
     std::uint32_t limit = 200;
     unsigned metadataColumns = defaultMetadataColumns;
 
+    Source source = Source::Automatic;
+    std::vector<Property> properties;
+    std::wstring sortProperty;
+
     bool operator==(const SearchKey& rhs) const {
         return instance == rhs.instance && generation == rhs.generation &&
                sort == rhs.sort && offset == rhs.offset && limit == rhs.limit &&
-               metadataColumns == rhs.metadataColumns;
+               metadataColumns == rhs.metadataColumns && source == rhs.source &&
+               properties == rhs.properties && sortProperty == rhs.sortProperty;
     }
 };
 
@@ -43,12 +50,15 @@ struct SearchHit {
     std::optional<std::uint32_t> runCount;
     std::optional<std::uint64_t> dateRun, recentlyChanged;
 
+    Source source = Source::Stable14;
+    std::map<unsigned, std::wstring> propertyValues;
+
     bool operator==(const SearchHit& other) const {
         return std::tie(name, path, directory, size, modified, created, accessed, attributes,
-                        extension, fileList, runCount, dateRun, recentlyChanged) ==
+                        extension, fileList, runCount, dateRun, recentlyChanged, source, propertyValues) ==
                std::tie(other.name, other.path, other.directory, other.size, other.modified,
                         other.created, other.accessed, other.attributes, other.extension,
-                        other.fileList, other.runCount, other.dateRun, other.recentlyChanged);
+                        other.fileList, other.runCount, other.dateRun, other.recentlyChanged, other.source, other.propertyValues);
     }
 };
 
@@ -59,11 +69,12 @@ struct SearchReply {
     SearchState state;
     std::vector<SearchHit> hits;
     std::uint32_t total;
+    std::vector<Property> properties;
 };
 
 // Called on Samandarin's UI thread. No filesystem pointers cross threads.
 void SubmitSearch(SearchKey key, const std::wstring& query);
-void RecordOpenedFile(const std::wstring& path);
+void RecordOpenedFile(const std::wstring& path, Source source);
 bool RefreshOpenSearches();
 void ScheduleFileOperationRefresh();
 void CancelSearch(std::uint64_t instance);

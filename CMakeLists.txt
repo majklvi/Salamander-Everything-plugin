@@ -28,7 +28,12 @@ target_compile_definitions(EverythingSdkV2 PRIVATE UNICODE _UNICODE)
 set_target_properties(EverythingSdkV2 PROPERTIES
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-add_library(EverythingSearch MODULE src/plugin.cpp src/filesystem.cpp src/editor.cpp
+add_library(EverythingSdkV3 STATIC third_party/everything-sdk-v3/src/Everything3.c)
+target_compile_definitions(EverythingSdkV3 PRIVATE EVERYTHING3_LIB UNICODE _UNICODE)
+set_target_properties(EverythingSdkV3 PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+target_include_directories(EverythingSdkV3 SYSTEM PUBLIC third_party/everything-sdk-v3/include)
+
+add_library(EverythingSearch MODULE src/modern_search.cpp src/plugin.cpp src/filesystem.cpp src/editor.cpp
     src/actions.cpp src/result_listing.cpp src/header_order.cpp
     src/settings.cpp src/settings.rc src/search.cpp src/sdk-notice.rc src/plugin.def)
 target_compile_features(EverythingSearch PRIVATE cxx_std_17)
@@ -37,7 +42,7 @@ target_compile_definitions(EverythingSearch PRIVATE UNICODE _UNICODE NOMINMAX WI
 target_compile_options(EverythingSearch PRIVATE /W4 /utf-8)
 target_include_directories(EverythingSearch SYSTEM PRIVATE "${SAMANDARIN_SDK_DIR}"
     third_party/everything-sdk-v2/include third_party/everything-sdk-v2/ipc)
-target_link_libraries(EverythingSearch PRIVATE EverythingSdkV2 comctl32 user32 gdi32 shell32 ole32 uuid dwmapi uxtheme)
+target_link_libraries(EverythingSearch PRIVATE EverythingSdkV2 EverythingSdkV3 comctl32 user32 gdi32 shell32 ole32 uuid dwmapi uxtheme)
 set_target_properties(EverythingSearch PROPERTIES
     PREFIX "" SUFFIX ".spl"
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")

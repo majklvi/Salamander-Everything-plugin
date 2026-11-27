@@ -1,26 +1,43 @@
 #include <windows.h>
 #include "settings_resource.h"
 
-IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 153
+IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 179
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Everything Search Settings"
 FONT 9, "Segoe UI"
 BEGIN
-    LTEXT           "Result columns", -1, 8, 4, 100, 10, WS_GROUP
-    AUTOCHECKBOX    "&Size", IDC_FILE_SIZE, 15, 19, 91, 11
-    AUTOCHECKBOX    "&Parent folder", IDC_PARENT_FOLDER, 15, 31, 91, 11
-    AUTOCHECKBOX    "&Extension", IDC_EXTENSION, 15, 43, 91, 11
-    AUTOCHECKBOX    "Date &modified", IDC_MODIFIED, 15, 55, 91, 11
-    AUTOCHECKBOX    "Date &created", IDC_CREATED, 15, 67, 91, 11
-    AUTOCHECKBOX    "Date &accessed", IDC_ACCESSED, 15, 79, 91, 11
-    AUTOCHECKBOX    "Attri&butes", IDC_ATTRIBUTES, 112, 19, 110, 11
-    AUTOCHECKBOX    "&Run count", IDC_RUN_COUNT, 112, 31, 110, 11
-    AUTOCHECKBOX    "Date r&un", IDC_DATE_RUN, 112, 43, 110, 11
-    AUTOCHECKBOX    "Date recentl&y changed", IDC_RECENTLY_CHANGED, 112, 55, 110, 11
-    AUTOCHECKBOX    "File &list", IDC_FILE_LIST, 112, 67, 110, 11
-    LTEXT           "Current search &order", IDC_ORDER_LABEL, 8, 99, 77, 12
-    COMBOBOX        IDC_ORDER, 86, 96, 140, 165, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    AUTOCHECKBOX    "&Descending", IDC_DESCENDING, 86, 114, 128, 11
-    DEFPUSHBUTTON   "OK", IDOK, 120, 131, 50, 15
-    PUSHBUTTON      "Cancel", IDCANCEL, 176, 131, 50, 15
+    LTEXT           "Everything source", -1, 8, 10, 75, 11
+    COMBOBOX        IDC_SOURCE, 86, 7, 140, 72, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Result columns", -1, 8, 28, 100, 10, WS_GROUP
+    AUTOCHECKBOX    "&Size", IDC_FILE_SIZE, 15, 43, 91, 11
+    AUTOCHECKBOX    "&Parent folder", IDC_PARENT_FOLDER, 15, 55, 91, 11
+    AUTOCHECKBOX    "&Extension", IDC_EXTENSION, 15, 67, 91, 11
+    AUTOCHECKBOX    "Date &modified", IDC_MODIFIED, 15, 79, 91, 11
+    AUTOCHECKBOX    "Date &created", IDC_CREATED, 15, 91, 91, 11
+    AUTOCHECKBOX    "Date &accessed", IDC_ACCESSED, 15, 103, 91, 11
+    AUTOCHECKBOX    "Attri&butes", IDC_ATTRIBUTES, 112, 43, 110, 11
+    AUTOCHECKBOX    "&Run count", IDC_RUN_COUNT, 112, 55, 110, 11
+    AUTOCHECKBOX    "Date r&un", IDC_DATE_RUN, 112, 67, 110, 11
+    AUTOCHECKBOX    "Date recentl&y changed", IDC_RECENTLY_CHANGED, 112, 79, 110, 11
+    AUTOCHECKBOX    "File &list", IDC_FILE_LIST, 112, 91, 110, 11
+    LTEXT           "Current search &order", IDC_ORDER_LABEL, 8, 123, 77, 12
+    COMBOBOX        IDC_ORDER, 86, 120, 140, 165, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "&Descending", IDC_DESCENDING, 86, 138, 128, 11
+    PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 157, 65, 15
+    DEFPUSHBUTTON   "OK", IDOK, 120, 157, 50, 15
+    PUSHBUTTON      "Cancel", IDCANCEL, 176, 157, 50, 15
+END
+
+IDD_ADVANCED DIALOGEX 0, 0, 249, 213
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Advanced Properties"
+FONT 9, "Segoe UI"
+BEGIN
+    LTEXT           "&Filter properties", -1, 8, 10, 65, 11
+    EDITTEXT        IDC_PROPERTY_FILTER, 78, 7, 163, 14, ES_AUTOHSCROLL
+    LISTBOX         IDC_PROPERTIES, 8, 25, 233, 131, LBS_NOTIFY | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "&Show as result column", IDC_SHOW_PROPERTY, 8, 164, 128, 12
+    PUSHBUTTON      "Use for &sorting", IDC_SORT_PROPERTY, 156, 162, 85, 15
+    DEFPUSHBUTTON   "OK", IDOK, 135, 190, 50, 15
+    PUSHBUTTON      "Cancel", IDCANCEL, 191, 190, 50, 15
 END

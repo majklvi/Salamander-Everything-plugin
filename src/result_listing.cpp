@@ -156,6 +156,7 @@ unsigned HeaderColumnSort(DWORD raw)
 {
     if (!(raw & sortKeyFlag)) return 0;
     const DWORD id = BaseColumn(raw);
+    if (id >= firstPropertyOrder) return id;
     if (!id) return EVERYTHING_SORT_PATH_ASCENDING;
     return id <= std::size(metadataColumns) ? metadataColumns[id - 1].ascending : 0;
 }
@@ -167,6 +168,15 @@ void WINAPI ColumnText()
     const DWORD raw = *transferColumn;
     if (collectingHeaderSort && (raw & sortKeyFlag)) observedColumnSort = HeaderColumnSort(raw);
     const DWORD column = BaseColumn(raw);
+    if (row && column >= firstPropertyOrder) {
+        const auto it = row->hit.propertyValues.find(column);
+        if (it != row->hit.propertyValues.end()) {
+            const auto value = DisplayText(it->second, TRANSFER_BUFFER_MAX - 1);
+            std::memcpy(transferBuffer, value.data(), value.size());
+            *transferLength = static_cast<int>(value.size());
+        }
+        return;
+    }
     if (!row || column > std::size(metadataColumns)) return;
     const auto text = column ? FormatMetadata(row->hit, metadataColumns[column - 1].flag) : row->displayParent;
     *transferLength = static_cast<int>(text.size());
@@ -174,14 +184,14 @@ void WINAPI ColumnText()
 }
 
 struct ColumnWidth { unsigned width = 0; bool fixed = false; };
-std::array<ColumnWidth, std::size(metadataColumns) + 1> columnWidths[2];
+std::map<DWORD, ColumnWidth> columnWidths[2];
 
 void InsertResultColumn(CSalamanderViewAbstract* view, BOOL left, DWORD id, const char* title, bool numeric)
 {
     const auto& width = columnWidths[left != FALSE][id];
     CColumn column{};
-    strcpy_s(column.Name, title);
-    if (id) sprintf_s(column.Description, "%s from the Everything index", title);
+    strncpy_s(column.Name, title, _TRUNCATE);
+    if (id) _snprintf_s(column.Description, _TRUNCATE, "%s from the Everything index", title);
     else strcpy_s(column.Description, "Indexed folder containing the result");
     column.GetText = ColumnText;
     column.CustomData = separateSortKey | id;
@@ -209,15 +219,19 @@ public:
             if (visible & field.flag)
                 InsertResultColumn(view, left, field.flag == ColumnParent ? 0 : i + 1, field.title, field.flag == ColumnSize || field.flag == ColumnRunCount);
         }
+        if (page) for (const auto& property : page->properties) {
+            const auto title = DisplayText(property.title, sizeof(CColumn::Name) - 1);
+            InsertResultColumn(view, left, property.order, title.c_str(), false);
+        }
     }
     void WINAPI ColumnFixedWidthShouldChange(BOOL left, const CColumn* column, int fixed) override {
         auto& widths = columnWidths[left != FALSE];
-        if (column->ID == COLUMN_ID_CUSTOM && BaseColumn(column->CustomData) < widths.size())
+        if (column->ID == COLUMN_ID_CUSTOM)
             widths[BaseColumn(column->CustomData)] = {column->Width, fixed != 0};
     }
     void WINAPI ColumnWidthWasChanged(BOOL left, const CColumn* column, int width) override {
         auto& widths = columnWidths[left != FALSE];
-        if (column->ID == COLUMN_ID_CUSTOM && BaseColumn(column->CustomData) < widths.size())
+        if (column->ID == COLUMN_ID_CUSTOM)
             widths[BaseColumn(column->CustomData)].width = width;
     }
     BOOL WINAPI GetInfoLineContent(int, const CFileData*, BOOL, int files, int dirs, BOOL,
@@ -233,6 +247,10 @@ public:
                 order += page->sort == column.descending ? " descending" : " ascending";
                 break;
             }
+        }
+        if (const auto* property = PropertyForOrder(page->sort)) {
+            order = DisplayText(property->title, 160);
+            order += page->sort == property->order ? " ascending" : " descending";
         }
         if (page->sort == mostOpenedSort) order = "most opened first";
         if (page->sort == leastOpenedSort) order = "least opened first";
@@ -306,6 +324,7 @@ unsigned EndHeaderSortObservation()
 
 ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key.sort)
 {
+    properties = std::move(reply.properties);
     rows.reserve(reply.hits.size());
     for (auto& hit : reply.hits) {
         std::string prefix;

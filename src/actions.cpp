@@ -123,7 +123,7 @@ void OpenResult(int panel, const SearchHit& hit)
     if (!ShellExecuteExW(&open))
         Report(L"Windows could not open the indexed file.", target.native(), GetLastError());
     else
-        RecordOpenedFile(hit.path);
+        RecordOpenedFile(hit.path, hit.source);
 }
 
 void RevealResult(int panel, const SearchHit& hit)

@@ -2,6 +2,37 @@
 
 ## Settings
 
+### Everything 1.4 and 1.5 sources
+
+Open **Settings → Everything source** to select **Automatic (prefer 1.4)**, **Everything 1.4** or **Everything 1.5**. Automatic chooses a running 1.4 index first and otherwise uses 1.5. An explicit version stays selected if it goes offline. Source selection applies to all open searches and is saved with the plugin settings.
+
+Version 1.4 uses SDK v2 and the 12 standard sort choices. With a connected 1.5 catalog, **Settings → Advanced…** opens the full list of properties. Type part of a property name in **Filter properties**, select a match, then choose **Use for sorting**. The selected property appears in **Current search order** in the main dialog. Choose **Descending** if desired, then **OK** to apply. **Show as result column** controls the visibility of an additional column independently. The main dialog offers standard sort choices, enabled additional columns and the current sort.
+
+**Advanced dialog check in Open Samandarin 0.16 x64.** With the query `file:` open, typing `ength` matched **Name Length**. Choosing **Use for sorting** with **Show as result column** unchecked returned to Settings with Name Length selected. After OK, the panel reported 200 of 2,641 results in Name Length ascending order. Its headers remained Name, Date modified, Run count and Size.
+
+The source sorts the full query before returning the first 200 rows, even when the sort column is hidden. Additional columns are saved by canonical name and resolved against the live server. [voidtools SDK 3 API](https://www.voidtools.com/forum/viewtopic.php?t=15853)
+
+### Property discovery in Everything 1.5
+
+Everything 1.5.0.1424b returned 2,153 property names, of which 81 reported being indexed. Width, Height, Dimensions, Length, Tags and Authors were discoverable and reported as unindexed on this installation. Availability of a value depends on the file and the index.
+
+**Verified with both versions running.** A portable Everything 1.4.1.1032 named instance indexed a separate test folder. In Open Samandarin 0.16 x64, Automatic showed four matches for `file:`. Switching to 1.5 in Settings kept the query and showed 200 of 2,641 matches. Selecting **Type** as both a displayed column and the ascending sort produced a Type header, populated Application cells and a Type ascending status line. A separate test of the plugin worker selected 1.4 explicitly, selected 1.5 with **Name Length** descending, and returned to Automatic. The 1.5 first row had a Name Length of 75 and Automatic returned to the four-file test index.
+
+### Live sorting with hidden columns
+
+On November 27, 2026, the query `file: "\5.0-samandarin-0.2\"` matched 603 files in Open Samandarin 0.16 x64. Both **Size** and **Date modified** were unchecked throughout the four comparisons. Each order was selected in the settings dialog. A test build of commit `688dd3f` recorded the full paths by enumerating the native panel after refresh. An independent Everything SDK v2 client queried the same index with offset 0 and limit 200 and confirmed each returned sort ID.
+
+| Hidden sort column | Direction | SDK sort ID | Full paths at the same position | First file | 200th file |
+| --- | --- | ---: | ---: | --- | --- |
+| Size | Ascending | 5 | 200/200 | `markup-templating.json` | `soy.json` |
+| Size | Descending | 6 | 200/200 | `salamand.exe` | `tar.chm` |
+| Date modified | Ascending | 13 | 200/200 | `api-ms-win-core-console-l1-1-0.dll` | `Newtonsoft.Json.dll` |
+| Date modified | Descending | 14 | 200/200 | `sqlite.dll` | `nix.json` |
+
+For each column, the ascending and descending pages had zero paths in common. Reversing direction therefore fetched a different set of 200 files.
+
+### Dialog and column selection
+
 **Layout check in Open Samandarin 0.16 x64.** All three file-date checkboxes could be checked together in the dark dialog. The open order selector showed twelve distinct columns, from Name to Parent folder, with a separate Descending checkbox below it. The SDK regression used synthetic replies with 275 matches to verify that the returned 200 rows retain their order for all twelve columns in both directions.
 
 The settings window follows Samandarin's dark-mode setting. In Open Samandarin 0.16 x64, the dark title bar, dialog background, section heading, checkbox labels, date and order selectors, and OK and Cancel buttons were verified visually. Light and Windows high-contrast modes use native control rendering and were not visually tested.
@@ -14,7 +45,7 @@ Open **Plugins → Everything Search → Settings…**, or select **Everything S
 
 Detailed view starts with **Name** and **Date modified**. Each optional column has its own checkbox. Select any combination of **Date modified**, **Date created** and **Date accessed**, or clear all three. Enable **Parent folder** to distinguish duplicate names.
 
-**Current search order** lists Name and all eleven optional columns, including hidden columns. Select a column for ascending order or check **Descending** under the list to reverse it. Everything orders the full query before returning up to 200 results. If Everything reports a different sort, the panel shows that the selected order is unavailable.
+In 1.4, **Current search order** lists Name and all eleven optional columns, including hidden columns. Select a column for ascending order or check **Descending** under the list to reverse it. Everything orders the full query before returning up to 200 results. If Everything reports a different sort, the panel shows that the selected order is unavailable.
 
 Dates follow the same Windows local-time conversion and regional short-date format as the disk panel. Size uses Samandarin's configured bytes, whole KB or mixed units via its SDK formatting functions. Empty values stay blank.
 
@@ -35,7 +66,7 @@ Both panels updated on confirmation, including the rounding to whole KB and the 
 
 ### Recording file opens in Everything
 
-When Windows accepts a request to open a file from the results list, the plugin sends its exact indexed Unicode path to `Everything_IncRunCountFromFileNameW`. Everything increments **Run count** and updates **Date run**. Recording works with both columns hidden. A successful update refreshes open searches, including queries that filter on run history. Folder navigation, **Open containing folder** and failed file opens do not increment the count. If Everything is unavailable at the time of recording, the file stays open and the plugin does not retry the increment. [Everything SDK reference](https://www.voidtools.com/support/everything/sdk/everything_incruncountfromfilename/)
+When Windows accepts a request to open a file from the results list, the plugin sends its exact indexed Unicode path to the run-history API of the Everything version that supplied the row. Everything increments **Run count** and updates **Date run**. Recording works with both columns hidden. A successful update refreshes open searches, including queries that filter on run history. Folder navigation, **Open containing folder** and failed file opens do not increment the count. If Everything is unavailable at the time of recording, the file stays open and the plugin does not retry the increment. [Everything SDK reference](https://www.voidtools.com/support/everything/sdk/everything_incruncountfromfilename/)
 
 **Verified in Open Samandarin 0.16 x64 on November 27, 2026.** A new indexed text file showed a run count of `0`. Pressing Enter on its result opened that file in Notepad. The still-open search updated to `1` without a manual refresh, and **Date run** showed `27.11.2026`. After the test file was removed, pressing Enter on its stale result produced a file-not-found message. A separate SDK read of the exact path still returned `1`.
 

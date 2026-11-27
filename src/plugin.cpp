@@ -89,6 +89,21 @@ public:
     CPluginInterfaceForThumbLoaderAbstract* WINAPI GetInterfaceForThumbLoader() override { return nullptr; }
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
+        DWORD source = 0;
+        if (key && registry->GetValue(key, "EverythingSource", REG_DWORD, &source, sizeof(source)) &&
+            source <= static_cast<DWORD>(Source::Modern15))
+            preferredSource = static_cast<Source>(source);
+        DWORD bytes = 0;
+        if (key && registry->GetSize(key, "Everything15Properties", REG_BINARY, bytes) &&
+            bytes && bytes % sizeof(wchar_t) == 0 && bytes <= 4 * 1024 * 1024) {
+            std::wstring saved(bytes / sizeof(wchar_t), L'\0');
+            if (registry->GetValue(key, "Everything15Properties", REG_BINARY, saved.data(), bytes)) {
+                for (size_t pos = 0, end; (end = saved.find(L'\0', pos)) != saved.npos && end > pos; pos = end + 1) {
+                    auto name = saved.substr(pos, end - pos);
+                    visibleProperties.push_back(RegisterProperty(name, name));
+                }
+            }
+        }
         DWORD mask = defaultMetadataColumns;
         if (key && !registry->GetValue(key, columnsSetting, REG_DWORD, &mask, sizeof(mask))) {
             DWORD legacy = 0;
@@ -101,7 +116,17 @@ public:
     }
     void WINAPI SaveConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         const DWORD mask = VisibleMetadataColumns();
-        if (key) registry->SetValue(key, columnsSetting, REG_DWORD, &mask, sizeof(mask));
+        if (!key) return;
+        const auto source = static_cast<DWORD>(preferredSource);
+        registry->SetValue(key, "EverythingSource", REG_DWORD, &source, sizeof(source));
+        std::wstring saved;
+        for (const auto& p : visibleProperties) {
+            saved += p.canonical;
+            saved.push_back(L'\0');
+        }
+        registry->SetValue(key, "Everything15Properties", REG_BINARY, saved.c_str(),
+                           static_cast<DWORD>((saved.size() + 1) * sizeof(wchar_t)));
+        registry->SetValue(key, columnsSetting, REG_DWORD, &mask, sizeof(mask));
     }
     void WINAPI Configuration(HWND parent) override { ShowSearchSettings(parent); }
     void WINAPI ClearHistory(HWND) override {}

@@ -1,4 +1,6 @@
 #include "search.h"
+#include "modern_search.h"
+extern "C" void Everything_SetTargetWindow(HWND);
 
 #include <windows.h>
 #include <process.h>
@@ -79,7 +81,7 @@ HANDLE worker = nullptr;
 std::mutex queues;
 std::deque<Request> pending;
 std::deque<SearchReply> completed;
-std::deque<std::wstring> openedFiles;
+std::deque<std::pair<std::wstring, Source>> openedFiles;
 
 void Publish(SearchReply reply)
 {
@@ -308,14 +310,20 @@ unsigned __stdcall Run(void*)
     const HANDLE events[] = {stop, wake};
     for (;;) {
         const bool stopping = WaitForSingleObject(stop, 0) == WAIT_OBJECT_0;
-        std::deque<std::wstring> launches;
+        std::deque<std::pair<std::wstring, Source>> launches;
         {
             std::lock_guard lock(queues);
             launches.swap(openedFiles);
         }
         bool changed = false;
-        for (const auto& path : launches)
-            if (Everything_IncRunCountFromFileNameW(path.c_str())) changed = true;
+        for (const auto& [path, source] : launches) {
+            const auto sources = DiscoverSources();
+            if (source == Source::Modern15) changed |= RecordModernOpen(sources, path);
+            else if (sources.stable) {
+                Everything_SetTargetWindow(sources.stable);
+                changed |= Everything_IncRunCountFromFileNameW(path.c_str()) != 0;
+            }
+        }
         if (stopping) break;
         if (changed) PostMessageW(ui, runsChangedMessage, 0, 0);
         MSG message;
@@ -343,7 +351,15 @@ unsigned __stdcall Run(void*)
                 }
             }
             if (request) {
-                receiver.Start(hwnd, *request);
+                const auto sources = DiscoverSources();
+                if (sources.UseModern(request->key.source))
+                    Publish(QueryModern(sources, request->key, request->query, stop));
+                else if (sources.stable && !request->key.sortProperty.empty())
+                    Publish({request->key, SearchState::UnsupportedSort, {}, 0});
+                else {
+                    Everything_SetTargetWindow(sources.stable);
+                    receiver.Start(hwnd, *request);
+                }
                 continue;
             }
         }
@@ -397,6 +413,7 @@ void SubmitSearch(SearchKey key, const std::wstring& query)
         DeliverSearchReply({key, SearchState::Unavailable, {}, 0});
         return;
     }
+    InterruptModernSearch(key.instance);
     // SDK v2 returns snapshots. Poll while queries are open so delayed index
     // updates and later saves in external editors reach the same result panel.
     if (!indexPollArmed)
@@ -411,17 +428,18 @@ void SubmitSearch(SearchKey key, const std::wstring& query)
 
 void CancelSearch(std::uint64_t instance)
 {
+    InterruptModernSearch(instance);
     std::lock_guard lock(queues);
     RemovePending(instance);
     // An in-flight or already posted reply still has its original immutable key.
 }
 
-void RecordOpenedFile(const std::wstring& path)
+void RecordOpenedFile(const std::wstring& path, Source source)
 {
     if (!EnsureStarted()) return;
     {
         std::lock_guard lock(queues);
-        openedFiles.push_back(path);
+        openedFiles.emplace_back(path, source);
     }
     SetEvent(wake);
 }
@@ -430,6 +448,7 @@ void ShutdownSearch()
 {
     if (worker) {
         SetEvent(stop);
+        InterruptModernSearch(0);
         WaitForSingleObject(worker, INFINITE);
         CloseHandle(worker);
         worker = nullptr;

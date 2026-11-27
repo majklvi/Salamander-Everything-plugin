@@ -20,6 +20,7 @@ struct ResultPage {
     std::vector<ResultRow> rows;
     std::uint32_t total;
     std::uint32_t sort;
+    std::vector<Property> properties;
 };
 
 // The host can use the previous listing until its refresh finishes. Each

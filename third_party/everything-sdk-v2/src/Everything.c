@@ -37,6 +37,17 @@
 #include "../include/Everything.h"
 #include "../ipc/everything_ipc.h"
 
+// Pin all IPC operations to the 1.4 endpoint selected by the plugin worker.
+static HWND _Everything_Target;
+static BOOL _Everything_TargetPinned;
+void Everything_SetTargetWindow(HWND window) {
+    _Everything_TargetPinned = TRUE;
+    _Everything_Target = window;
+}
+static HWND _Everything_TargetWindow(void) {
+    return _Everything_TargetPinned ? _Everything_Target : FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+}
+
 // Plugin integration: every SDK send to the external process has a deadline,
 // including the readiness probe and the synchronous submission of an async query.
 static BOOL _Everything_SendBounded(HWND window, UINT message, WPARAM wp, LPARAM lp, DWORD_PTR *result)
@@ -661,7 +672,7 @@ static DWORD EVERYTHINGAPI _Everything_query_thread_proc(void *param)
 {
 	HWND everything_hwnd;
 
-	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	everything_hwnd = _Everything_TargetWindow();
 	if (everything_hwnd)
 	{
 		WNDCLASSEX wcex;
@@ -866,7 +877,7 @@ static BOOL _Everything_SendIPCQuery(void)
 	BOOL ret;
 	
 		// find the everything ipc window.
-	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	everything_hwnd = _Everything_TargetWindow();
 	if (everything_hwnd)
 	{
 		_Everything_QueryVersion = 2;
@@ -2870,7 +2881,7 @@ static BOOL _Everything_SendAPIBoolCommand(int command,LPARAM lParam)
 {
 	HWND everything_hwnd;
 	
-	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	everything_hwnd = _Everything_TargetWindow();
 	if (everything_hwnd)
 	{
 		_Everything_LastError = 0;
@@ -2906,7 +2917,7 @@ static DWORD _Everything_SendAPIDwordCommand(int command,LPARAM lParam)
 {
 	HWND everything_hwnd;
 	
-	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	everything_hwnd = _Everything_TargetWindow();
 	if (everything_hwnd)
 	{
 		_Everything_LastError = 0;
@@ -3006,7 +3017,7 @@ UINT EVERYTHINGAPI Everything_MSIExitAndStopService(void *msihandle)
 	{
 		HWND everything_hwnd;
 		
-		everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+		everything_hwnd = _Everything_TargetWindow();
 		if (everything_hwnd)
 		{
 			DWORD dwProcessId;
@@ -3199,7 +3210,7 @@ static LRESULT _Everything_SendCopyData(int command,const void *data,int size)
 {
 	HWND everything_hwnd;
 	
-	everything_hwnd = FindWindow(EVERYTHING_IPC_WNDCLASS,0);
+	everything_hwnd = _Everything_TargetWindow();
 	if (everything_hwnd)
 	{
 		COPYDATASTRUCT cds;

@@ -1,2 +1,3 @@
 // Keep the SDK redistribution notice inside the single-file release.
+2 RCDATA "../third_party/everything-sdk-v3/LICENSE.txt"
 1 RCDATA "../third_party/everything-sdk-v2/LICENSE.txt"

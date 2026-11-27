@@ -36,6 +36,8 @@ public:
     explicit ResultsFS(std::uint64_t instance) {
         key.instance = instance;
         key.metadataColumns = visibleColumns;
+        key.source = preferredSource;
+        key.properties = visibleProperties;
     }
 
     std::uint64_t Instance() const { return key.instance; }
@@ -56,6 +58,8 @@ public:
     void ChangeSort(std::uint32_t sort) {
         if (sort == key.sort) return;
         key.sort = sort;
+        const auto* property = PropertyForOrder(sort);
+        key.sortProperty = property ? property->canonical : L"";
         focusFirstRank = UsesRankedNames(sort);
         if (!query.empty())
             Filter(query, true);
@@ -63,6 +67,12 @@ public:
 
     void ChangeColumns(unsigned mask) {
         key.metadataColumns = mask;
+        key.source = preferredSource;
+        key.properties = visibleProperties;
+        if (key.source == Source::Stable14 && !key.sortProperty.empty()) {
+            key.sort = 1;
+            key.sortProperty.clear();
+        }
         if (query.empty())
             gGeneral->PostRefreshPanelFS(this);
         else
@@ -446,6 +456,10 @@ bool RefreshOpenSearches() {
         }
     }
     return active;
+}
+
+void RefreshSourceSettings() {
+    for (auto& fs : instances) fs.ChangeColumns(visibleColumns);
 }
 
 void SetVisibleMetadataColumns(unsigned mask) {
