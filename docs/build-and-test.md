@@ -241,3 +241,11 @@ In Settings, Default puts 200 back in the Maximum results field. OK applies the 
 ### Panel edge clearance for compact labels
 
 Automatic Name and Parent folder widths reserve at least 12 pixels at 96 DPI, scaled for the current display. The layout regression checks the clearance on a narrow panel.
+
+### Shell menus for search results
+
+For one item or several siblings, the plugin requests the item menu from the disk folder with GetUIObjectOf. A selection spanning folders uses a shell results folder to preserve every item identity. The plugin passes the resulting menu to the Samandarin SDK popup renderer and forwards shell submenu messages. The SDK exposes the popup renderer but keeps disk-panel-only commands and its panel-specific font override internal.
+
+In the MenuCompareResults instance of Open Samandarin 0.16 x64, a right-click on the SalBuild2 copy of salamand.exe in Everything showed the same dark menu and sequence of top-level commands as a right-click after revealing that file with Shift+F3, except for Rename. The disk panel placed Rename between Delete and Properties. The result menu went directly from Delete to Properties. Both ordinary menus already included Copy as path, Give access to and Send to. The comparison covered the top-level entries only.
+
+With Shift held during the right-click, both panels added Run as different user immediately below Run as administrator. Rename remained available only in the disk panel. The other visible top-level commands and their order matched in both comparisons.

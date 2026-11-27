@@ -1,5 +1,6 @@
 #include "plugin.h"
 #include "actions.h"
+#include "spl_gui.h"
 #include "search.h"
 
 #include <wrl/client.h>
@@ -206,13 +207,42 @@ struct ShellResultsView {
     ~ShellResultsView() { if (browser) browser->Destroy(); }
 };
 
-// The shell can bind sibling items directly. For a selection spanning disk
-// folders, give each absolute PIDL a child identity in one shell results folder.
+// Ask the actual disk folder for its item menu, as the disk panel does.
+// A virtual results folder is only needed when the items have different parents.
 HRESULT SelectionContextMenu(HWND parent, IShellItemArray* items, ShellResultsView& view,
                              ComPtr<IContextMenu>& shell)
 {
-    HRESULT hr = items->BindToHandler(nullptr, BHID_SFUIObject, IID_PPV_ARGS(&shell));
-    if (SUCCEEDED(hr)) return hr;
+    DWORD count = 0;
+    HRESULT hr = items->GetCount(&count);
+    if (FAILED(hr) || !count) return FAILED(hr) ? hr : E_INVALIDARG;
+    std::vector<PIDLIST_ABSOLUTE> ids(count);
+    std::vector<PCUITEMID_CHILD> children;
+    ComPtr<IShellFolder> diskFolder;
+    PIDLIST_ABSOLUTE commonParent = nullptr;
+    bool siblings = true;
+    for (DWORD i = 0; SUCCEEDED(hr) && i < count; ++i) {
+        ComPtr<IShellItem> item;
+        hr = items->GetItemAt(i, &item);
+        if (SUCCEEDED(hr)) hr = SHGetIDListFromObject(item.Get(), &ids[i]);
+        if (FAILED(hr)) break;
+        if (i == 0) {
+            commonParent = ILCloneFull(ids[i]);
+            if (!commonParent) { hr = E_OUTOFMEMORY; break; }
+            ILRemoveLastID(commonParent);
+            hr = SHBindToParent(ids[i], IID_PPV_ARGS(&diskFolder), nullptr);
+        } else if (!ILIsParent(commonParent, ids[i], TRUE)) {
+            siblings = false;
+            break;
+        }
+        children.push_back(ILFindLastID(ids[i]));
+    }
+    if (SUCCEEDED(hr) && siblings)
+        hr = diskFolder->GetUIObjectOf(parent, count, children.data(), IID_IContextMenu, nullptr,
+                                       reinterpret_cast<void**>(shell.GetAddressOf()));
+    CoTaskMemFree(commonParent);
+    for (auto id : ids) CoTaskMemFree(id);
+    if (siblings) return hr;
+    children.clear();
 
     hr = CoCreateInstance(CLSID_ExplorerBrowser, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&view.browser));
     RECT bounds{}; // The results view supplies shell identities only.
@@ -226,9 +256,6 @@ HRESULT SelectionContextMenu(HWND parent, IShellItemArray* items, ShellResultsVi
     if (SUCCEEDED(hr)) hr = folderView->GetFolder(IID_PPV_ARGS(&folder));
     ComPtr<IResultsFolder> results;
     if (SUCCEEDED(hr)) hr = folder.As(&results);
-    DWORD count = 0;
-    if (SUCCEEDED(hr)) hr = items->GetCount(&count);
-    std::vector<PCUITEMID_CHILD> children;
     children.reserve(count);
     for (DWORD i = 0; SUCCEEDED(hr) && i < count; ++i) {
         ComPtr<IShellItem> item;
@@ -304,17 +331,23 @@ void ResultContextMenu(HWND parent, int x, int y, const std::vector<SearchHit>& 
     HMENU menu = CreatePopupMenu();
     if (!menu) return;
     constexpr UINT firstVerb = 1;
-    hr = shell->QueryContextMenu(menu, 0, firstVerb, 0x7fff, CMF_NORMAL);
+    UINT flags = CMF_NORMAL | CMF_EXPLORE | CMF_SYNCCASCADEMENU;
+    if (GetKeyState(VK_SHIFT) & 0x8000) flags |= CMF_EXTENDEDVERBS;
+    hr = shell->QueryContextMenu(menu, 0, firstVerb, 0x7fff, flags);
     if (FAILED(hr)) {
         DestroyMenu(menu);
         Report(L"Windows could not populate the context menu.", L"", hr);
         return;
     }
+    auto* popup = gGUI->CreateMenuPopup();
+    if (!popup) { DestroyMenu(menu); return; }
+    popup->SetTemplateMenu(menu);
     shell.As(&activeMenu2);
     shell.As(&activeMenu3);
-    const UINT cmd = TrackPopupMenuEx(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, x, y, parent, nullptr);
+    const UINT cmd = popup->Track(MENU_TRACK_RETURNCMD | MENU_TRACK_RIGHTBUTTON, x, y, parent, nullptr);
     activeMenu3.Reset();
     activeMenu2.Reset();
+    gGUI->DestroyMenuPopup(popup);
     if (cmd >= firstVerb) {
         CMINVOKECOMMANDINFO invoke{sizeof(invoke)};
         invoke.hwnd = parent;
