@@ -133,3 +133,9 @@ For a Free Pascal toolchain, set `CHMCMD_EXECUTABLE` to a compiler that writes a
 Update the corresponding English topic in the same change as any user-visible command, shortcut, dialog or default. Each new topic needs an entry in the project file and contents, suitable index keywords and a link from a related page. For context help, assign a stable ID in `help/topics.h`, map it in the project's ALIAS section and use that ID in the plugin callback. Verify the installed CHM through the plugin menu and F1 from the affected control. Record observed behavior separately from usage instructions.
 
 In Open Samandarin 0.16 x64, pressing F1 with the caret in the search field opened **Getting started** in the Windows HTML Help viewer. The Contents tab listed all five topics and the viewer displayed Index and Search tabs. The compiled archive contained the five numeric context IDs mapped to their respective relative topic filenames.
+
+## Native Change Attributes dialog
+
+Open Samandarin 0.16 dispatches Ctrl+F2 to the active panel. Its disk-panel branch creates the native dialog. Its plugin-filesystem branch checks `FS_SERVICE_CHANGEATTRS` and calls the plugin’s `ChangeAttributes` callback. The SDK expects the plugin to supply its own dialog and does not expose the disk dialog for a list of absolute paths. Everything Search leaves this service disabled. Use Shift+F3 followed by Ctrl+F2 to change the focused item’s attributes in the disk panel.
+
+Verified in Open Samandarin 0.16 x64 with the current Release plugin. With the sole result of `exact:Everything.lng` focused, Ctrl+F2 opened no dialog and **Files > Change Attributes** was disabled. Shift+F3 opened the parent disk folder and focused `Everything.lng` without marking it. Ctrl+F2 then opened the native **Change Attributes** dialog with Archive checked and the file date and time controls visible. The dialog was left open without applying changes.
