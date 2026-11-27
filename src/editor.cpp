@@ -5,6 +5,7 @@
 #include "search.h"
 #include "filter_dialog.h"
 
+#include <uxtheme.h>
 #include <algorithm>
 #include <cwchar>
 #include <utility>
@@ -36,6 +37,7 @@ struct Binding {
     HWND popup = nullptr;
     HWND edit = nullptr;
     HFONT font = nullptr;
+    bool dark = false;
     bool composing = false;
     bool enterWhenListed = false;
     RECT natural{}; // Last rectangle proposed by the host, in panel coordinates.
@@ -207,7 +209,7 @@ void Layout()
     RECT current = InParent(binding.list, binding.panel);
     if (!EqualRect(&results, &current))
         PlaceWindow(binding.list, results, placementFlags | SWP_NOSENDCHANGING);
-    if (h == 0 || IsIconic(binding.frame) || !IsWindowEnabled(binding.frame) ||
+    if (h == 0 || IsIconic(binding.frame) ||
         !IsWindowVisible(binding.panel)) {
         ShowWindow(binding.popup, SW_HIDE);
         return;
@@ -228,7 +230,8 @@ bool Bind(HWND frame, HWND list, CPluginFSInterfaceAbstract* fs)
     binding.fs = fs;
     binding.natural = InParent(list, binding.panel);
     binding.popup = CreateWindowExW(WS_EX_TOOLWINDOW, editorClass, L"Everything search",
-        WS_POPUP | WS_CLIPCHILDREN, 0, 0, 0, 0, frame, nullptr, gInstance, nullptr);
+        WS_POPUP | WS_CLIPCHILDREN | (IsWindowEnabled(frame) ? 0 : WS_DISABLED),
+        0, 0, 0, 0, frame, nullptr, gInstance, nullptr);
     if (!binding.popup)
         return false;
     binding.edit = CreateWindowExW(0, L"EDIT", GetQuery(fs).c_str(),
@@ -306,6 +309,12 @@ void Sync()
         StopObservingResultHeader(binding.header);
         binding.header = header;
     }
+    const bool dark = UseHostDarkTheme();
+    if (binding.edit && binding.dark != dark) {
+        binding.dark = dark;
+        SetWindowTheme(binding.edit, dark ? L"DarkMode_Explorer" : nullptr, nullptr);
+        RedrawWindow(binding.edit, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_FRAME);
+    }
     ObserveResultHeader(header, fs);
     if (!header) {
         // Keep watching the same results list for header re-creation when the
@@ -332,7 +341,7 @@ void Sync()
     }
     binding.minListHeight = headerRect.bottom + row + GetSystemMetricsForDpi(SM_CYHSCROLL, dpi);
     Layout();
-    if (focusRequested && IsWindowVisible(binding.popup)) {
+    if (focusRequested && IsWindowVisible(binding.popup) && IsWindowEnabled(binding.popup)) {
         SetActiveWindow(binding.popup);
         SetFocus(binding.edit);
     }
@@ -370,6 +379,10 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
         if (!(p->flags & SWP_NOSIZE)) p->cy = h - StripHeight();
     } else if (msg == WM_WINDOWPOSCHANGED || msg == WM_ACTIVATE || msg == WM_ENABLE || msg == WM_SHOWWINDOW ||
                msg == WM_DPICHANGED || msg == WM_DPICHANGED_AFTERPARENT || msg == WM_PARENTNOTIFY) {
+        // A modal dialog disables the frame. Its owned search strip must stay
+        // painted over the reserved row, but must not accept input.
+        if (hwnd == binding.frame && msg == WM_ENABLE && binding.popup)
+            EnableWindow(binding.popup, wp != FALSE);
         if (hwnd == binding.panel && msg == WM_SHOWWINDOW && !wp && binding.popup)
             ShowWindow(binding.popup, SW_HIDE);
         ScheduleEditorSync();
@@ -448,6 +461,16 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 0;
     }
     if (hwnd == binding.popup) {
+        if ((msg == WM_CTLCOLOREDIT || msg == WM_CTLCOLORSTATIC) && binding.dark &&
+            reinterpret_cast<HWND>(lp) == binding.edit) {
+            const auto dc = reinterpret_cast<HDC>(wp);
+            constexpr COLORREF background = RGB(42, 42, 42);
+            SetBkColor(dc, background);
+            SetTextColor(dc, RGB(230, 230, 230));
+            SetDCBrushColor(dc, background);
+            return reinterpret_cast<LRESULT>(GetStockObject(DC_BRUSH));
+        }
+        if (msg == WM_THEMECHANGED || msg == WM_SETTINGCHANGE) ScheduleEditorSync();
         if (msg == WM_NCDESTROY) binding.popup = nullptr;
         if (msg == WM_SIZE && binding.edit) {
             MoveWindow(binding.edit, 0, 0, LOWORD(lp), HIWORD(lp), TRUE);

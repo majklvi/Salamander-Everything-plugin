@@ -68,6 +68,12 @@ Ctrl+F12 opens Samandarin's Filter dialog from the query field or the results. T
 
 In Open Samandarin 0.16 x64, a file-only query for the test installation directory returned 47 files. Opening Ctrl+F12 while the query field had focus and applying `*.exe;vcruntime*` left exactly `salamand.exe` and `vcruntime140.dll`. The information line showed **2 of 47**. Clicking **Size** placed the 124,544-byte DLL first in ascending order and the 3,420,160-byte executable first in descending order. Both rows kept their original filenames throughout.
 
+## Search field while Settings is open
+
+In Open Samandarin 0.16 x64, opening Everything Search Settings with the original build in the light Open Samandarin scheme hid the search field and exposed an empty strip above the column headers. The plugin had hidden its popup whenever the modal dialog disabled the main frame. The corrected build disables input to the popup and keeps it visible in its reserved row.
+
+In the corrected build, the empty field retained its “Search Everything” prompt behind Settings. After closing Settings, typing `vcruntime` returned 15 results. With the same search open, the host scheme was changed four times in sequence: Windows Dark Mode (experimental), Windows Explorer, Windows Dark Mode (experimental), and Norton Commander. Everything Search Settings was opened after each change. The query remained readable above the headers in all four observations and the panel retained all 15 results. Both dark-mode checks showed a dark field. Windows Explorer and Norton Commander showed a light field, including alongside the blue Norton Commander panel.
+
 ## Ctrl+F12 saved Everything filters
 
 Open Samandarin 0.16 x64 was tested with a running Everything 1.5 instance. Without a user CSV, the dialog listed the built-in filters. A second host used an isolated roaming profile so the test could edit Filters.csv while Samandarin remained open. The dropdown displayed both a saved override of Executable and the custom name `Knihovny, "DLL"` with its definition `ext:dll`. Selecting the custom filter with an empty query returned 200 of 506 matches. Typing `vcruntime` retained the filter and returned 15 matches.
