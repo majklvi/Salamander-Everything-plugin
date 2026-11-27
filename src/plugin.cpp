@@ -93,9 +93,7 @@ public:
         } else if (id == settingsCommand) {
             ShowSearchSettings(parent);
         } else if (id == openContainingFolder) {
-            SearchHit hit;
-            if (FocusedHit(hit))
-                RevealResult(PANEL_SOURCE, hit);
+            RevealFocusedResult(PANEL_SOURCE);
         }
         return FALSE; // Preserve the user's selection.
     }

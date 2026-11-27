@@ -230,9 +230,9 @@ The result identity regression also checks both native sort-key directions for a
 
 In Open Samandarin 0.16 x64, the query `ext:dll` returned 506 results. With Name sorted ascending and the first `7z.dll` focused, scrolling with the mouse wheel brought `api-ms-win-core-interlocked-l1-1-0.dll` to the top of the viewport. It stayed there after a pause and after Ctrl+R refreshed the listing. Pressing Down then moved focus to the second `7z.dll` near the start of the list, confirming that scrolling had preserved the original keyboard focus.
 
-### Returning from a result folder
+### Returning from a result folder or a revealed file
 
-The result identity regression opens the second of two folders with the same name. Returning through panel history restores the query and focuses that folder by full path.
+The result identity regression opens the second of two folders with the same name. Returning through panel history restores the query and focuses that folder by full path. The file reveal regression opens the containing folder for a focused report.pdf. On return, the simulated index delivers two identically named files in a different order. The original query, focused path and mark are restored.
 
 ### Result limit controls
 

@@ -26,6 +26,14 @@ struct FolderNavigation {
 };
 FolderNavigation openingDirectory{};
 
+struct RememberNavigation {
+    RememberNavigation(CPluginFSInterfaceAbstract* fs, const SearchHit& hit)
+        : previous(std::exchange(openingDirectory, FolderNavigation{fs, &hit})) {}
+    ~RememberNavigation() { openingDirectory = previous; }
+
+    const FolderNavigation previous;
+};
+
 bool IsRoot(const char* path) {
     return path && (*path == '\0' || std::strcmp(path, "\\") == 0);
 }
@@ -355,7 +363,7 @@ public:
             RememberSelection();
             if (!saved) saved.emplace();
             saved->caret = openingDirectory.hit->path;
-            saved->caretIsDirectory = true;
+            saved->caretIsDirectory = openingDirectory.hit->directory;
             focusFirstRank = false;
         }
         return TRUE;
@@ -530,9 +538,8 @@ public:
                             CFileData& file, int isDir) override {
         SearchHit hit;
         if (isDir != 2 && GetResultHit(fs, &file, hit)) {
-            const auto previous = std::exchange(openingDirectory, FolderNavigation{hit.directory ? fs : nullptr, &hit});
+            const RememberNavigation navigation(hit.directory ? fs : nullptr, hit);
             OpenResult(gGeneral->GetPanelPluginFS(PANEL_SOURCE) == fs ? PANEL_SOURCE : panel, hit);
-            openingDirectory = previous;
         }
     }
     BOOL WINAPI DisconnectFS(HWND parent, BOOL inPanel, int panel, CPluginFSInterfaceAbstract* fs,
@@ -641,6 +648,15 @@ std::uint32_t GetResultSort(CPluginFSInterfaceAbstract* fs) {
 void SetResultSort(CPluginFSInterfaceAbstract* fs, std::uint32_t sort) {
     const auto it = FindInstance(fs);
     if (it != instances.end()) it->ChangeSort(sort);
+}
+
+void RevealFocusedResult(int panel) {
+    auto* fs = gGeneral->GetPanelPluginFS(panel);
+    SearchHit hit;
+    if (IsResultsFS(fs) && GetResultHit(fs, gGeneral->GetPanelFocusedItem(panel, nullptr), hit)) {
+        const RememberNavigation navigation(fs, hit);
+        RevealResult(panel, hit);
+    }
 }
 
 bool GetResultHit(CPluginFSInterfaceAbstract* fs, const CFileData* row, SearchHit& hit) {

@@ -33,17 +33,24 @@ void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
 void SubmitSearch(SearchKey key, const std::wstring& text) { submitted = key; submittedText = text; }
 void CancelSearch(std::uint64_t) {}
+void SimulatePanelDeparture() {
+    BOOL detach = FALSE;
+    auto* fs = testHost.active;
+    fs->TryCloseOrDetach(FALSE, TRUE, detach, FSTRYCLOSE_CHANGEPATH);
+    if (!detach) throw std::runtime_error("Folder navigation closed the search");
+    testHost.active = nullptr;
+    testHost.listing = nullptr;
+    fs->Event(FSE_DETACHED, PANEL_LEFT);
+}
+
 void OpenResult(int, const SearchHit& hit) {
     opened = hit;
-    if (simulateDiskNavigation && hit.directory) {
-        BOOL detach = FALSE;
-        auto* fs = testHost.active;
-        fs->TryCloseOrDetach(FALSE, TRUE, detach, FSTRYCLOSE_CHANGEPATH);
-        if (!detach) throw std::runtime_error("Folder navigation closed the search");
-        testHost.active = nullptr;
-        testHost.listing = nullptr;
-        fs->Event(FSE_DETACHED, PANEL_LEFT);
-    }
+    if (simulateDiskNavigation && hit.directory) SimulatePanelDeparture();
+}
+
+void RevealResult(int, const SearchHit& hit) {
+    opened = hit;
+    SimulatePanelDeparture();
 }
 
 namespace {
@@ -160,6 +167,20 @@ void RunChecks()
           "manual refresh restores the exact file after a basename merge");
     Check(scrollPosition == 1, "refresh restores the visible row independently of the offscreen caret");
     scrollPosition = -1;
+
+    RevealFocusedResult(PANEL_LEFT);
+    Check(!testHost.active && opened.path == beta.path, "revealing the focused file suspends its search");
+    testHost.active = fs;
+    TestDirectory returning;
+    testHost.Publish(returning);
+    fs->Event(FSE_ATTACHED, PANEL_LEFT);
+    Check(submittedText == L"report", "Back after reveal restores the original query");
+    DeliverSearchReply({submitted, SearchState::Ready, {alpha, beta}, 2});
+    TestDirectory afterReveal;
+    testHost.Publish(afterReveal);
+    RestoreResultSelection();
+    Check(testHost.caret == 1 && afterReveal.files[1].Selected && !afterReveal.files[0].Selected,
+          "Back after reveal restores the focused file and its mark by full path after reordering");
 
     SetQuery(fs, L"Alpha");
     DeliverSearchReply({submitted, SearchState::Ready, {alpha}, 1});
