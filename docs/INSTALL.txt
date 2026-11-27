@@ -1,4 +1,4 @@
-Everything Search 0.5.0 for Open Samandarin 0.16 x64
+Everything Search 0.6.0 for Open Samandarin 0.16 x64
 
 Install
 1. Install and start Everything 1.4 or 1.5 in the same Windows session.

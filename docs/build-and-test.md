@@ -1,6 +1,6 @@
 # Build and run Everything Search
 
-Everything Search 0.5.0 is a native x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
+Everything Search 0.6.0 is a native x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
 
 ## Build
 

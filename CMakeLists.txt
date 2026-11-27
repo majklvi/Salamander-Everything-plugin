@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(EverythingSearch VERSION 0.5.0 LANGUAGES C CXX RC)
+project(EverythingSearch VERSION 0.6.0 LANGUAGES C CXX RC)
 
 if(NOT WIN32 OR NOT MSVC OR NOT MSVC_CXX_ARCHITECTURE_ID STREQUAL "x64")
     message(FATAL_ERROR "Configure with an x64 MSVC-compatible Windows toolchain.")
