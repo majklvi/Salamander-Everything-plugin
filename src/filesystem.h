@@ -26,4 +26,5 @@ void SetResultSort(CPluginFSInterfaceAbstract* fs, std::uint32_t sort);
 bool GetResultHit(CPluginFSInterfaceAbstract* fs, const CFileData* row, SearchHit& hit);
 void RememberResultSelection(CPluginFSInterfaceAbstract* fs);
 void RestoreResultSelection();
+void ForgetResultScroll(CPluginFSInterfaceAbstract* fs);
 void ReleaseResultListing(CPluginDataInterfaceAbstract* data);

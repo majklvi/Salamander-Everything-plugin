@@ -145,8 +145,14 @@ void ApplyNativeOrder(HWND frame, int panel)
     const UINT base = panel == PANEL_LEFT ? leftName : rightName;
     const UINT cmd = base + static_cast<UINT>(i - nativeOrders);
     const DWORD checked = CheckedNativeSort(panel);
-    if (previous.fs == fs && previous.sort == sort && checked == ascending &&
-        ascending != EVERYTHING_SORT_DATE_MODIFIED_ASCENDING) return;
+    if (previous.fs == fs && previous.sort == sort && checked == ascending) {
+        if (ascending != EVERYTHING_SORT_DATE_MODIFIED_ASCENDING) return;
+        // Reissuing sort commands scrolls back to the caret. Only correct the
+        // host's date direction if the refreshed rows actually run backwards.
+        const auto rows = VisibleFileOrder(panel);
+        if (rows.size() < 2 || rows.front()->hit.modified == rows.back()->hit.modified ||
+            ((rows.front()->hit.modified > rows.back()->hit.modified) == (sort != ascending))) return;
+    }
     previous = {fs, sort};
     // The host only exposes toggle commands. Select a different key first so
     // the following request starts in a known direction on either panel.

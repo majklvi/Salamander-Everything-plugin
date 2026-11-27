@@ -436,6 +436,9 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& forwa
     if (hwnd == binding.frame && msg == WM_COMMAND && LOWORD(wp) == changeFilterCommand &&
         binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs)
         return ShowResultFilter(hwnd, wp, lp, binding.fs);
+    if (hwnd == binding.list &&
+        (msg == WM_MOUSEWHEEL || msg == WM_KEYDOWN || msg == WM_LBUTTONDOWN || msg == WM_VSCROLL))
+        ForgetResultScroll(binding.fs);
     if (hwnd == binding.list && msg == editFocusedResult) {
         SearchHit hit;
         if (gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs &&
@@ -654,6 +657,32 @@ HWND ResultLayoutWindow(BOOL left)
     HWND list = ListOnSide(gGeneral->GetMainWindowHWND(), left ? PANEL_LEFT : PANEL_RIGHT);
     HWND header = list ? FindHeader(list) : nullptr;
     return header ? header : list;
+}
+
+// The Detailed list's vertical scrollbar uses row indices. Samandarin
+// reads its 32-bit track position instead of WM_VSCROLL's 16-bit argument.
+static HWND ResultScrollBar(CPluginFSInterfaceAbstract* fs)
+{
+    if (binding.fs != fs || !binding.header || !IsWindowVisible(binding.header)) return nullptr;
+    HWND bar = FindWindowExW(binding.list, nullptr, L"ScrollBar", nullptr);
+    return bar && (GetWindowLongPtrW(bar, GWL_STYLE) & SBS_VERT) ? bar : nullptr;
+}
+
+int ResultScrollPosition(CPluginFSInterfaceAbstract* fs)
+{
+    const HWND bar = ResultScrollBar(fs);
+    SCROLLINFO info{sizeof(info), SIF_POS};
+    return bar && GetScrollInfo(bar, SB_CTL, &info) ? info.nPos : -1;
+}
+
+void RestoreResultScroll(CPluginFSInterfaceAbstract* fs, int position)
+{
+    const HWND bar = ResultScrollBar(fs);
+    SCROLLINFO info{sizeof(info), SIF_POS};
+    if (!bar || GetCapture() == bar || !GetScrollInfo(bar, SB_CTL, &info) || info.nPos == position) return;
+    info.nPos = position;
+    SetScrollInfo(bar, SB_CTL, &info, FALSE);
+    SendMessageW(GetParent(bar), WM_VSCROLL, SB_THUMBPOSITION, reinterpret_cast<LPARAM>(bar));
 }
 
 void ShowEditorForActivePanel()

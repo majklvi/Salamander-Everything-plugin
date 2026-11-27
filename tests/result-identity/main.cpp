@@ -23,6 +23,9 @@ const std::vector<EverythingFilter>& FilterCatalog() {
 }
 
 HWND layoutWindow = nullptr;
+int scrollPosition = -1;
+int ResultScrollPosition(CPluginFSInterfaceAbstract*) { return scrollPosition; }
+void RestoreResultScroll(CPluginFSInterfaceAbstract*, int position) { scrollPosition = position; }
 HWND ResultLayoutWindow(BOOL) { return layoutWindow; }
 void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
@@ -134,12 +137,16 @@ void RunChecks()
           "after reordering, caret and selection follow Beta despite the host's basename merge");
 
     TestDirectory refresh;
+    scrollPosition = 1; // Alpha is at the top of the viewport; the caret remains on Beta above it.
     testHost.Publish(refresh);
+    scrollPosition = 0;
     testHost.caret = 1;
     refresh.files[1].Selected = TRUE;
     RestoreResultSelection();
     Check(testHost.caret == 0 && refresh.files[0].Selected && !refresh.files[1].Selected,
           "manual refresh restores the exact file after a basename merge");
+    Check(scrollPosition == 1, "refresh restores the visible row independently of the offscreen caret");
+    scrollPosition = -1;
 
     SetQuery(fs, L"Alpha");
     DeliverSearchReply({submitted, SearchState::Ready, {alpha}, 1});

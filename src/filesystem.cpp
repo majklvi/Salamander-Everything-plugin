@@ -30,6 +30,9 @@ std::string FilterPath(const EverythingFilter& filter) {
 }
 
 struct PanelSelection {
+    int topIndex = -1;
+    std::wstring topPath;
+    bool topIsDirectory = false;
     std::wstring caret;
     bool caretIsDirectory = false;
     // A directory can be replaced by a file at exactly the same path.
@@ -101,13 +104,23 @@ public:
         return -1;
     }
 
-    void RememberSelection() {
+    void RememberSelection(bool preserveScroll = false) {
         if (saved) return;
         const int panel = Panel();
         if (panel < 0) return;
         const ResultPage* displayed = GetListingPage(gGeneral->GetPanelPluginData(panel));
         if (!displayed || displayed->rows.empty()) return;
         PanelSelection selection;
+        if (preserveScroll) {
+            int index = ResultScrollPosition(this);
+            selection.topIndex = index;
+            if (index >= 0) {
+                if (const auto* top = FindResultHit(displayed, gGeneral->GetPanelItem(panel, &index, nullptr))) {
+                    selection.topPath = top->path;
+                    selection.topIsDirectory = top->directory;
+                }
+            }
+        }
         if (const auto* focus = FindResultHit(displayed, gGeneral->GetPanelFocusedItem(panel, nullptr))) {
             selection.caret = focus->path;
             selection.caretIsDirectory = focus->directory;
@@ -138,6 +151,9 @@ public:
         while (const CFileData* file = gGeneral->GetPanelItem(panel, &i, nullptr)) {
             const auto* hit = FindResultHit(page.get(), file);
             if (!hit) continue;
+            if (selection.topIndex >= 0 && hit->directory == selection.topIsDirectory &&
+                hit->path == selection.topPath)
+                selection.topIndex = i - 1;
             const bool mark = selection.marked[hit->directory].count(hit->path) != 0;
             if (mark != (file->Selected != 0)) {
                 gGeneral->SelectPanelItem(panel, file, mark);
@@ -148,11 +164,17 @@ public:
                 gGeneral->SetPanelFocusedItem(panel, file, FALSE);
         }
         if (repaint) gGeneral->RepaintChangedItems(panel);
+        if (selection.topIndex >= 0) RestoreResultScroll(this, selection.topIndex);
+    }
+
+    void ForgetScroll() {
+        if (saved) saved->topIndex = -1;
     }
 
     void Filter(const std::wstring& text, bool retry = false) {
         if (query == text && !retry)
             return;
+        ForgetScroll();
         RememberSelection();
         if (!retry)
             query = text;
@@ -207,7 +229,7 @@ public:
                  std::equal(page->rows.begin(), page->rows.end(), reply.hits.begin(),
                             [](const ResultRow& row, const SearchHit& hit) { return row.hit == hit; }))))
                 return true;
-            RememberSelection();
+            RememberSelection(true);
             page.reset();
         }
         state = reply.state;
@@ -285,7 +307,7 @@ public:
         // 0.16 retains the old FS listing during this call. Its normal
         // post-refresh merge uses basenames; take the full-path identities
         // before the host installs the new list, including for a manual refresh.
-        RememberSelection();
+        RememberSelection(true);
         char masks[MAX_GROUPMASK];
         const int panel = Panel();
         const bool filtered = panel >= 0 && gGeneral->GetFilterFromPanel(panel, masks, sizeof(masks));
@@ -596,6 +618,11 @@ void RememberResultSelection(CPluginFSInterfaceAbstract* fs) {
 
 void RestoreResultSelection() {
     for (auto& fs : instances) fs.RestoreSelection();
+}
+
+void ForgetResultScroll(CPluginFSInterfaceAbstract* fs) {
+    const auto it = FindInstance(fs);
+    if (it != instances.end()) it->ForgetScroll();
 }
 
 void DeliverSearchReply(SearchReply&& reply) {

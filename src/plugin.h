@@ -25,5 +25,7 @@ void CheckSearchPrerequisite(HWND parent);
 void ShowSearchSettings(HWND parent);
 void ShowEditorForActivePanel();
 void ScheduleEditorSync();
+int ResultScrollPosition(CPluginFSInterfaceAbstract* fs);
+void RestoreResultScroll(CPluginFSInterfaceAbstract* fs, int position);
 void ForgetEditorFS(CPluginFSInterfaceAbstract* fs);
 void ShutdownEditor();
