@@ -228,11 +228,12 @@ extern "C" CPluginInterfaceAbstract* WINAPI SalamanderPluginEntry(CSalamanderPlu
     SalamanderVersion = host->GetVersion();
     if (SalamanderVersion < LAST_VERSION_OF_SALAMANDER ||
         !host->SetBasicPluginData("Everything Search", FUNCTION_FILESYSTEM | FUNCTION_CONFIGURATION | FUNCTION_LOADSAVECONFIGURATION,
-                                  EVERYTHING_SEARCH_VERSION, "majklvi",
+                                  EVERYTHING_SEARCH_VERSION, "Michal Várady",
                                   "Search the Everything index in a fixed panel field.", "EverythingSearch",
                                   nullptr, "everything")) {
         return nullptr;
     }
+    host->SetPluginHomePageURL("https://github.com/majklvi/Salamander-Everything-plugin");
     gGeneral = host->GetSalamanderGeneral();
     gGUI = host->GetSalamanderGUI();
     gGeneral->SetHelpFileName("EverythingSearch.chm");
