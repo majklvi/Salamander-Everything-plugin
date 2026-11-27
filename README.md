@@ -10,6 +10,8 @@ Press **Ctrl+F12** in an Everything panel and select **Use Everything Filter** t
 
 The plugin loads the built-in filters and reads `%APPDATA%\Everything\Filters.csv` at startup and whenever the dialog opens. For a named Everything instance, it checks `Filters-<instance>.csv` first. A saved filter with the same name overrides the built-in definition.
 
+Open **Plugins > Everything Search > Help** for the English offline manual. Press **F1** in Settings or Advanced Properties for help with that dialog. [Read the manual in a browser](help/search.htm) · [Build, install and maintain the help](docs/build-and-test.md#html-help)
+
 ## Development
 
 Each search tab keeps its query when the tab or the whole right panel moves into a separate window. Queries use SDK v2 for Everything 1.4 and SDK 3 for Everything 1.5. **Settings → Everything source** selects the version. Automatic prefers a running 1.4 instance. Version 1.5 also supplies a searchable list of additional display properties and a dynamic sort menu. Milestone 4 covers full-path actions, selection across refreshes and ordering queries larger than one page. [Development plan](docs/development-plan.md) · [Detached-window tests](docs/milestone-2.md) · [Live query tests](docs/milestone-3.md)

@@ -1,0 +1,5 @@
+#define IDH_SEARCH 101
+#define IDH_FILTERS 102
+#define IDH_ACTIONS 103
+#define IDH_SETTINGS 104
+#define IDH_ADVANCED 105

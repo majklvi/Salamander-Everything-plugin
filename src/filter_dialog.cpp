@@ -33,6 +33,11 @@ void SelectMode(HWND dlg, int mode)
 LRESULT CALLBACK FilterProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR id, DWORD_PTR data)
 {
     auto &state = *reinterpret_cast<Session *>(data);
+    if ((msg == WM_HELP || (msg == WM_COMMAND && LOWORD(wp) == IDHELP)) &&
+        IsDlgButtonChecked(dlg, useEverything) == BST_CHECKED) {
+        gGeneral->OpenHtmlHelp(dlg, HHCDisplayContext, IDH_FILTERS, FALSE);
+        return TRUE;
+    }
     if (msg == WM_INITDIALOG) {
         auto result = DefSubclassProc(dlg, msg, wp, lp);
         if (state.initialSelection >= 0 && !IsDlgButtonChecked(dlg, mask))

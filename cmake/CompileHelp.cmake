@@ -1,0 +1,13 @@
+# HTML Help Workshop returns 1 on success. Always check for a fresh archive.
+file(REMOVE EverythingSearch.chm)
+if(HHC)
+    set(compiler "${HHC}")
+    set(success 1)
+else()
+    set(compiler "${CHMCMD}")
+    set(success 0)
+endif()
+execute_process(COMMAND "${compiler}" EverythingSearch.hhp RESULT_VARIABLE result)
+if(NOT "${result}" STREQUAL "${success}" OR NOT EXISTS EverythingSearch.chm)
+    message(FATAL_ERROR "HTML Help compilation failed (${result})")
+endif()

@@ -1,0 +1,9 @@
+body { margin: 0; background: white; color: black; font: 70% Verdana, Arial, Helvetica, sans-serif; }
+#help_page { margin: 2px; }
+.header { background: #e4eaf2; padding: .3em 1em; font-size: 110%; }
+.page { padding: 0 .7em; }
+h1 { font-size: 140%; margin: 1em 0 .6em; }
+h2 { font-size: 115%; margin: 1em 0 .6em; }
+dt, li { margin-top: .7em; }
+dd { margin: .25em 0 .8em 2em; }
+.footer { text-align: center; color: #228b22; margin-top: 3em; font-size: 90%; }

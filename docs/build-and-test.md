@@ -1,6 +1,6 @@
 # Build and run Everything Search
 
-Everything Search 0.4.2 is a read-only, x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
+Everything Search 0.4.2 is a native x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
 
 ## Build
 
@@ -91,3 +91,23 @@ In Open Samandarin 0.16 x64 with Everything 1.4.1.1032, selecting the custom **Q
 ### Shift+F3 opens the containing folder
 
 In Open Samandarin 0.16 x64, pressing Shift+F3 from the query field with the single result `everything.exe` opened `out\dual-test-14` in the same panel. The caret rested on `everything.exe`. The row was unmarked and the status line displayed the file details.
+
+## HTML Help
+
+The English user manual lives in `help/`. Its breadcrumb, topic headings, navigation links and typography follow the bundled Open Salamander plugin manuals. The Contents and Index belong to Everything Search so the manual can also be opened on its own.
+
+Install Microsoft HTML Help Workshop or pass the path to `hhc.exe` with `-DHHC_EXECUTABLE:FILEPATH=...` when configuring CMake. With the compiler present, building the plugin also builds the manual. To rebuild just the manual, run:
+
+```powershell
+cmake --build out/build --config Release --target EverythingSearchHelp
+```
+
+Distribute `out/build/help/english/EverythingSearch.chm` alongside the plugin release. Copy it to the host's `help/english/` directory under the directory containing `salamand.exe`. If the host already uses another help-language directory, put the CHM beside that directory's `salamand.chm`. The plugin registers the filename with the host. Building the plugin alone remains possible without a help compiler.
+
+For a Free Pascal toolchain, set `CHMCMD_EXECUTABLE` to a compiler that writes archive-relative URLs for numeric contexts. Stock chmcmd 3.2.2 embeds the build directory in those URLs. In that version the fix in `chmfilewriter.pas` is to pass `files[i]` as the URL to `Writer.AddContext`. Running `chmls extractalias EverythingSearch.chm` should produce five mappings to HTML filenames that contain no drive or build directory.
+
+### Keeping the help current
+
+Update the corresponding English topic in the same change as any user-visible command, shortcut, dialog or default. Each new topic needs an entry in the project file and contents, suitable index keywords and a link from a related page. For context help, assign a stable ID in `help/topics.h`, map it in the project's ALIAS section and use that ID in the plugin callback. Verify the installed CHM through the plugin menu and F1 from the affected control. Record observed behavior separately from usage instructions.
+
+In Open Samandarin 0.16 x64, pressing F1 with the caret in the search field opened **Getting started** in the Windows HTML Help viewer. The Contents tab listed all five topics and the viewer displayed Index and Search tabs. The compiled archive contained the five numeric context IDs mapped to their respective relative topic filenames.

@@ -129,6 +129,10 @@ void FillProperties(HWND dialog, const AdvancedState& state)
 
 INT_PTR CALLBACK AdvancedProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
 {
+    if (msg == WM_HELP || (msg == WM_COMMAND && LOWORD(wp) == IDHELP)) {
+        gGeneral->OpenHtmlHelp(dialog, HHCDisplayContext, IDH_ADVANCED, FALSE);
+        return TRUE;
+    }
     if (msg == WM_INITDIALOG) {
         auto& state = *reinterpret_cast<AdvancedState*>(lp);
         SetWindowLongPtrW(dialog, DWLP_USER, lp);
@@ -196,6 +200,10 @@ void SourceChanged(HWND dialog, SettingsState& state)
 
 INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
 {
+    if (msg == WM_HELP || (msg == WM_COMMAND && LOWORD(wp) == IDHELP)) {
+        gGeneral->OpenHtmlHelp(dialog, HHCDisplayContext, IDH_SETTINGS, FALSE);
+        return TRUE;
+    }
     if (msg == WM_INITDIALOG) {
         auto& state = *reinterpret_cast<SettingsState*>(lp);
         auto* fs = state.fs;

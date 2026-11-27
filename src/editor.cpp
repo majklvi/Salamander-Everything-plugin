@@ -379,6 +379,10 @@ LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
 
 LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
 {
+    if (msg == WM_HELP) {
+        gGeneral->OpenHtmlHelp(hwnd, HHCDisplayContext, IDH_SEARCH, FALSE);
+        return 0;
+    }
     if (msg == WM_KILLFOCUS) binding.enterWhenListed = false;
     if (msg == WM_IME_STARTCOMPOSITION) binding.composing = true;
     if (msg == WM_IME_ENDCOMPOSITION) binding.composing = false;

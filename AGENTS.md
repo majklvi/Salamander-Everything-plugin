@@ -1,0 +1,1 @@
+Keep the English user manual in `help/` current with user-visible changes to Everything Search. Update the affected topic alongside the implementation and follow the HTML Help maintenance notes in `docs/build-and-test.md`.

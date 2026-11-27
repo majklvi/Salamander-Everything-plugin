@@ -1,0 +1,27 @@
+[OPTIONS]
+Compatibility=1.1 or later
+Compiled file=EverythingSearch.chm
+Contents file=EverythingSearch.hhc
+Index file=EverythingSearch.hhk
+Default topic=search.htm
+Full-text search=Yes
+Language=0x409 English (United States)
+Title=Everything Search Help
+
+[FILES]
+help.css
+search.htm
+filters.htm
+actions.htm
+settings.htm
+advanced.htm
+
+[ALIAS]
+IDH_SEARCH=search.htm
+IDH_FILTERS=filters.htm
+IDH_ACTIONS=actions.htm
+IDH_SETTINGS=settings.htm
+IDH_ADVANCED=advanced.htm
+
+[MAP]
+#include topics.h

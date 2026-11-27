@@ -46,3 +46,24 @@ target_link_libraries(EverythingSearch PRIVATE EverythingSdkV2 EverythingSdkV3 c
 set_target_properties(EverythingSearch PROPERTIES
     PREFIX "" SUFFIX ".spl"
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+find_program(HHC_EXECUTABLE NAMES hhc HINTS "C:/Program Files (x86)/HTML Help Workshop")
+set(CHMCMD_EXECUTABLE "" CACHE FILEPATH "Alternative chmcmd compiler with archive-relative context URLs")
+if(HHC_EXECUTABLE OR CHMCMD_EXECUTABLE)
+    set(help_source "${CMAKE_CURRENT_SOURCE_DIR}/help")
+    set(help_work "${CMAKE_CURRENT_BINARY_DIR}/manual")
+    set(help_output "${CMAKE_CURRENT_BINARY_DIR}/help/english/EverythingSearch.chm")
+    file(GLOB help_inputs CONFIGURE_DEPENDS "${help_source}/*")
+    file(MAKE_DIRECTORY "${help_work}")
+    add_custom_command(OUTPUT "${help_output}"
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${help_source}" "${help_work}"
+        COMMAND "${CMAKE_COMMAND}" "-DHHC=${HHC_EXECUTABLE}" "-DCHMCMD=${CHMCMD_EXECUTABLE}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompileHelp.cmake"
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/help/english"
+        COMMAND "${CMAKE_COMMAND}" -E copy EverythingSearch.chm "${help_output}"
+        WORKING_DIRECTORY "${help_work}"
+        DEPENDS ${help_inputs} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompileHelp.cmake"
+        VERBATIM)
+    add_custom_target(EverythingSearchHelp DEPENDS "${help_output}")
+    add_dependencies(EverythingSearch EverythingSearchHelp)
+endif()

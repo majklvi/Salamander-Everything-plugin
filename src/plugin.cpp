@@ -22,6 +22,7 @@ namespace {
 
 constexpr int openSearch = 1;
 constexpr int settingsCommand = 5;
+constexpr int helpCommand = 6;
 char fsName[MAX_PATH]{};
 constexpr char columnsSetting[] = "ResultColumnsV2";
 
@@ -34,7 +35,7 @@ bool FocusedHit(SearchHit& hit)
 class SearchMenu final : public CPluginInterfaceForMenuExtAbstract {
 public:
     DWORD WINAPI GetMenuItemState(int id, DWORD) override {
-        if (id == openSearch || id == settingsCommand) return MENU_ITEM_STATE_ENABLED;
+        if (id == openSearch || id == settingsCommand || id == helpCommand) return MENU_ITEM_STATE_ENABLED;
         if (id == openContainingFolder) {
             SearchHit hit;
             return FocusedHit(hit) ? MENU_ITEM_STATE_ENABLED : 0;
@@ -47,6 +48,8 @@ public:
              gGeneral->ChangePanelPathToPluginFS(PANEL_SOURCE, fsName, "\\"))) {
             RetryFailedSearch(gGeneral->GetPanelPluginFS(PANEL_SOURCE));
             ShowEditorForActivePanel();
+        } else if (id == helpCommand) {
+            gGeneral->OpenHtmlHelp(parent, HHCDisplayContext, IDH_SEARCH, FALSE);
         } else if (id == settingsCommand) {
             ShowSearchSettings(parent);
         } else if (id == openContainingFolder) {
@@ -56,7 +59,17 @@ public:
         }
         return FALSE; // Preserve the user's selection.
     }
-    BOOL WINAPI HelpForMenuItem(HWND, int) override { return FALSE; }
+    BOOL WINAPI HelpForMenuItem(HWND parent, int id) override {
+        int topic;
+        switch (id) {
+        case openSearch:
+        case helpCommand: topic = IDH_SEARCH; break;
+        case openContainingFolder: topic = IDH_ACTIONS; break;
+        case settingsCommand: topic = IDH_SETTINGS; break;
+        default: return FALSE;
+        }
+        return gGeneral->OpenHtmlHelp(parent, HHCDisplayContext, topic, FALSE);
+    }
     void WINAPI BuildMenu(HWND, CSalamanderBuildMenuAbstract*) override {}
 };
 
@@ -73,6 +86,8 @@ public:
         host->AddMenuItem(-1, "Open &containing folder", 0, openContainingFolder, TRUE,
                           MENU_EVENT_THIS_PLUGIN_FS, MENU_EVENT_THIS_PLUGIN_FS, MENU_SKILLLEVEL_ALL);
         host->AddMenuItem(-1, "&Settings...", 0, settingsCommand, FALSE,
+                          MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
+        host->AddMenuItem(-1, "&Help", 0, helpCommand, FALSE,
                           MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
     }
     void WINAPI Event(int event, DWORD) override {
@@ -166,6 +181,7 @@ extern "C" CPluginInterfaceAbstract* WINAPI SalamanderPluginEntry(CSalamanderPlu
         return nullptr;
     }
     gGeneral = host->GetSalamanderGeneral();
+    gGeneral->SetHelpFileName("EverythingSearch.chm");
     gGeneral->GetPluginFSName(fsName, 0);
     RefreshFilterCatalog();
     static SearchPlugin plugin;

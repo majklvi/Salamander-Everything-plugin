@@ -17,6 +17,8 @@ extern CSalamanderGeneralAbstract* gGeneral;
 extern HINSTANCE gInstance;
 
 constexpr int openContainingFolder = 2;
+#include "../help/topics.h"
+
 bool UseHostDarkTheme();
 void ShowSearchSettings(HWND parent);
 void ShowEditorForActivePanel();
