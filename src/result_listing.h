@@ -8,6 +8,8 @@
 #include "search.h"
 
 std::string DisplayText(std::wstring_view text, size_t limit);
+HWND ResultLayoutWindow(BOOL left);
+bool ResultLayoutResized(CPluginDataInterfaceAbstract* data);
 void BeginHeaderSortObservation();
 unsigned EndHeaderSortObservation();
 

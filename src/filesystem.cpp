@@ -177,7 +177,10 @@ public:
     }
 
     void RefreshAvailability() {
-        if (page && page->availability && page->availability->changed.exchange(false))
+        if (!page) return;
+        const int panel = shortenResultLabels ? Panel() : -1;
+        const bool resized = panel >= 0 && ResultLayoutResized(gGeneral->GetPanelPluginData(panel));
+        if ((page->availability && page->availability->changed.exchange(false)) || resized)
             gGeneral->PostRefreshPanelFS(this);
     }
 

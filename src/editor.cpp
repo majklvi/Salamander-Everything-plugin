@@ -89,30 +89,13 @@ bool DisplayedTab(int side, CSalamanderPanelTabInfo& info)
     return false;
 }
 
-HWND SourceList(HWND frame, CPluginFSInterfaceAbstract* fs)
+HWND ListOnSide(HWND frame, int side)
 {
     // In 0.16 GetMainWindowHWND() already resolves the host frame for the
     // active panel. A torn tab is removed from its original side's SDK array.
     // In that case its live FS identity and its single-list frame identify it.
-    int side;
-    if (GetWindowThreadProcessId(frame, nullptr) != GetCurrentThreadId() ||
-        !gGeneral->GetPanelWithPluginFS(fs, side) || side != gGeneral->GetSourcePanel())
-        return nullptr;
     const bool main = HasClass(frame, mainClass);
-    const bool rightFrame = HasClass(frame, rightFrameClass);
-    const bool torn = HasClass(frame, tornFrameClass);
-    if (!main && !rightFrame && !torn)
-        return nullptr;
-    CSalamanderPanelTabInfo tab{};
-    const bool sourceOnSide = DisplayedTab(side, tab) && (tab.Flags & PANEL_TAB_FLAG_SOURCE);
-    if (torn) {
-        if (sourceOnSide) return nullptr;
-    } else {
-        const bool detachedSide = (tab.Flags & PANEL_TAB_FLAG_DETACHED) != 0;
-        if (!sourceOnSide || rightFrame != detachedSide || (rightFrame && side != PANEL_RIGHT))
-            return nullptr;
-    }
-
+    if (!main && !HasClass(frame, rightFrameClass) && !HasClass(frame, tornFrameClass)) return nullptr;
     HWND lists[2]{};
     int count = 0;
     for (HWND panel = GetWindow(frame, GW_CHILD); panel; panel = GetWindow(panel, GW_HWNDNEXT)) {
@@ -140,10 +123,34 @@ HWND SourceList(HWND frame, CPluginFSInterfaceAbstract* fs)
     if (count == 1) {
         CSalamanderPanelTabInfo right{};
         if ((side == PANEL_LEFT && DisplayedTab(PANEL_RIGHT, right) && (right.Flags & PANEL_TAB_FLAG_DETACHED)) ||
-            lists[0] == GetFocus() || (lists[0] == binding.list && fs == binding.fs))
+            lists[0] == GetFocus() || lists[0] == binding.list)
             return lists[0];
     }
     return nullptr;
+}
+
+HWND SourceList(HWND frame, CPluginFSInterfaceAbstract* fs)
+{
+    int side;
+    if (GetWindowThreadProcessId(frame, nullptr) != GetCurrentThreadId() ||
+        !gGeneral->GetPanelWithPluginFS(fs, side) || side != gGeneral->GetSourcePanel())
+        return nullptr;
+    const bool main = HasClass(frame, mainClass);
+    const bool rightFrame = HasClass(frame, rightFrameClass);
+    const bool torn = HasClass(frame, tornFrameClass);
+    if (!main && !rightFrame && !torn)
+        return nullptr;
+    CSalamanderPanelTabInfo tab{};
+    const bool sourceOnSide = DisplayedTab(side, tab) && (tab.Flags & PANEL_TAB_FLAG_SOURCE);
+    if (torn) {
+        if (sourceOnSide) return nullptr;
+    } else {
+        const bool detachedSide = (tab.Flags & PANEL_TAB_FLAG_DETACHED) != 0;
+        if (!sourceOnSide || rightFrame != detachedSide || (rightFrame && side != PANEL_RIGHT))
+            return nullptr;
+    }
+
+    return ListOnSide(frame, side);
 }
 
 // The header and the horizontal scrollbar container share a window class.
@@ -640,6 +647,13 @@ void ScheduleEditorSync()
     if (!dispatcher && (!gGeneral || !HasOpenResultsFS() || !EnsureDispatcher()))
         return;
     syncPosted = PostMessageW(dispatcher, syncMessage, 0, 0) != FALSE;
+}
+
+HWND ResultLayoutWindow(BOOL left)
+{
+    HWND list = ListOnSide(gGeneral->GetMainWindowHWND(), left ? PANEL_LEFT : PANEL_RIGHT);
+    HWND header = list ? FindHeader(list) : nullptr;
+    return header ? header : list;
 }
 
 void ShowEditorForActivePanel()

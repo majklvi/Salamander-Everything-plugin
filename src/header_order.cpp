@@ -99,7 +99,7 @@ LRESULT CALLBACK HeaderProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, bool& for
     if (IsResultsFS(fs) && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == fs &&
         gGeneral->GetPanelPluginData(PANEL_SOURCE) == listing && IsListingCurrent(fs)) {
         const DWORD native = CheckedNativeSort(gGeneral->GetSourcePanel());
-        if (native || ascending) SetResultSort(fs, ClickOrder(fs, native ? native : ascending));
+        if (native || ascending) SetResultSort(fs, ClickOrder(fs, ascending ? ascending : native));
     }
     ScheduleEditorSync();
     return result;

@@ -222,6 +222,7 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
                          SWP_NOZORDER | SWP_NOACTIVATE);
         }
         CheckDlgButton(dialog, IDC_CHECK_AVAILABILITY, AvailabilityChecksEnabled() ? BST_CHECKED : BST_UNCHECKED);
+        CheckDlgButton(dialog, IDC_SHORTEN_LABELS, shortenResultLabels ? BST_CHECKED : BST_UNCHECKED);
         SetDlgItemInt(dialog, IDC_NETWORK_RETRY, NetworkRetrySeconds(), FALSE);
         SetDlgItemInt(dialog, IDC_RESULT_LIMIT, configuredResultLimit, FALSE);
         const auto mask = VisibleMetadataColumns();
@@ -297,8 +298,10 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
             if (auto* p = PropertyForOrder(id)) selected.push_back(*p);
         const bool availabilityChanged = SetAvailabilityChecksEnabled(
             IsDlgButtonChecked(dialog, IDC_CHECK_AVAILABILITY) == BST_CHECKED);
-        const bool changed = availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
+        const bool shorten = IsDlgButtonChecked(dialog, IDC_SHORTEN_LABELS) == BST_CHECKED;
+        const bool changed = shorten != shortenResultLabels || availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
         SetNetworkRetrySeconds(retry);
+        shortenResultLabels = shorten;
         configuredResultLimit = limit;
         preferredSource = DialogSource(dialog);
         visibleProperties = std::move(selected);

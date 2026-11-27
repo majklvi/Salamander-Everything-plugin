@@ -50,6 +50,63 @@ std::wstring_view ParentOf(const SearchHit& hit)
     return std::wstring_view(hit.path).substr(0, end + (root ? 1 : 0));
 }
 
+int TextWidth(HDC dc, std::string_view text)
+{
+    SIZE extent{};
+    GetTextExtentPoint32A(dc, text.data(), static_cast<int>(text.size()), &extent);
+    return extent.cx;
+}
+
+// Count complete Unicode characters from each end before encoding. The SDK
+// byte limit also applies on code pages that need a [U+xxxx] escape.
+std::string ResultLabel(std::wstring_view text, HDC dc, int pixels, size_t limit)
+{
+    const size_t count = text.size();
+    if (count <= limit) {
+        auto full = DisplayText(text, 10 * count + 3);
+        if (full.size() <= limit && (!dc || TextWidth(dc, full) <= pixels)) return full;
+    }
+    static const auto marker = [] {
+        auto value = DisplayText(L"\u2026", 16);
+        return value == "[U+2026]" ? std::string("...") : value;
+    }();
+    if (dc && TextWidth(dc, marker) > pixels) return {};
+    auto split = [&](size_t pos) {
+        return pos && pos < count && text[pos] >= 0xdc00 && text[pos] <= 0xdfff &&
+               text[pos-1] >= 0xd800 && text[pos-1] <= 0xdbff;
+    };
+    size_t low = 0, high = (std::min)(count, limit);
+    std::string best = marker;
+    while (low < high) {
+        size_t keep = (low + high + 1) / 2;
+        size_t head = keep / 2, tail = count - (keep - head);
+        if (split(head)) --head;
+        if (split(tail)) ++tail;
+        auto value = DisplayText(text.substr(0, head), head * 10 + 3) + marker +
+                     DisplayText(text.substr(tail), (count - tail) * 10 + 3);
+        if (value.size() <= limit && (!dc || TextWidth(dc, value) <= pixels)) {
+            best = std::move(value);
+            low = keep;
+        } else high = keep - 1;
+    }
+    return best;
+}
+
+struct LabelLayout {
+    HWND window = nullptr;
+    HDC dc = nullptr;
+    HFONT font = nullptr;
+    int viewport = 0, name = 0, parent = 0;
+    UINT dpi = 0;
+    ~LabelLayout() { if (dc) DeleteDC(dc); if (font) DeleteObject(font); }
+    int Width() const {
+        RECT rect{};
+        return GetClientRect(window, &rect) ? rect.right : 0;
+    }
+};
+CPluginDataInterfaceAbstract** transferListing = nullptr;
+LabelLayout* CurrentLayout();
+
 bool LocalTime(const std::optional<std::uint64_t>& ticks, SYSTEMTIME& local)
 {
     if (!ticks) return false;
@@ -147,6 +204,8 @@ int WINAPI PlaceholderIndex()
 constexpr DWORD separateSortKey = 0x20000000;
 constexpr DWORD sortKeyFlag = 0x80000000;
 constexpr DWORD rankColumn = 99;
+constexpr DWORD compactNameColumn = 100;
+constexpr DWORD compactStemColumn = 101;
 bool rankingFilteredRows = false;
 bool collectingHeaderSort = false;
 unsigned observedColumnSort = 0;
@@ -157,6 +216,7 @@ unsigned HeaderColumnSort(DWORD raw)
     if (!(raw & sortKeyFlag)) return 0;
     const DWORD id = BaseColumn(raw);
     if (id >= firstPropertyOrder) return id;
+    if (id == compactNameColumn || id == compactStemColumn) return EVERYTHING_SORT_NAME_ASCENDING;
     if (!id) return EVERYTHING_SORT_PATH_ASCENDING;
     return id <= std::size(metadataColumns) ? metadataColumns[id - 1].ascending : 0;
 }
@@ -172,6 +232,29 @@ void WINAPI ColumnText()
         *transferLength = sprintf_s(transferBuffer, TRANSFER_BUFFER_MAX, "%u", row->rank);
         return;
     }
+    if (row && (column == compactNameColumn || column == compactStemColumn)) {
+        std::wstring_view name = row->hit.name;
+        const bool sortKey = (raw & sortKeyFlag) != 0;
+        if (!sortKey && column == compactStemColumn && !row->hit.directory) {
+            const auto dot = name.rfind(L'.');
+            if (dot != name.npos && dot != 0 && dot + 1 < name.size()) name = name.substr(0, dot);
+        }
+        std::string prefixText, suffix;
+        // Preserve the existing rank prefix and folder suffix only in listings that use them.
+        if (!sortKey && UsesRankedNames(row->owner->sort) && (*transferFile)->Name == row->displayName) {
+            const auto prefix = row->displayName.find("  ");
+            if (prefix != std::string::npos) prefixText = row->displayName.substr(0, prefix + 2);
+            if (row->hit.directory) suffix = "\\";
+        }
+        const auto* layout = CurrentLayout();
+        const auto value = !sortKey && layout && layout->dc
+            ? prefixText + ResultLabel(name, layout->dc, layout->name - TextWidth(layout->dc, prefixText + suffix),
+                                       MAX_PATH - 5 - prefixText.size() - suffix.size()) + suffix
+            : prefixText + DisplayText(name, (sortKey ? TRANSFER_BUFFER_MAX - 1 : MAX_PATH - 5) - prefixText.size() - suffix.size()) + suffix;
+        std::memcpy(transferBuffer, value.data(), value.size());
+        *transferLength = static_cast<int>(value.size());
+        return;
+    }
     if (row && column >= firstPropertyOrder) {
         const auto it = row->hit.propertyValues.find(column);
         if (it != row->hit.propertyValues.end()) {
@@ -182,7 +265,12 @@ void WINAPI ColumnText()
         return;
     }
     if (!row || column > std::size(metadataColumns)) return;
-    const auto text = column ? FormatMetadata(row->hit, metadataColumns[column - 1].flag) : row->displayParent;
+    std::string text;
+    const auto* layout = CurrentLayout();
+    if (column) text = FormatMetadata(row->hit, metadataColumns[column - 1].flag);
+    else if (!(raw & sortKeyFlag) && layout && layout->dc)
+        text = ResultLabel(ParentOf(row->hit), layout->dc, layout->parent, TRANSFER_BUFFER_MAX - 1);
+    else text = row->displayParent;
     *transferLength = static_cast<int>(text.size());
     std::memcpy(transferBuffer, text.data(), text.size());
 }
@@ -213,15 +301,27 @@ public:
     HIMAGELIST placeholders = nullptr;
     std::shared_ptr<const ResultPage> page;
     std::string filterLabel;
+    LabelLayout layout;
     bool filteredRanks = false;
     bool filtered = false;
     bool nativeOrderApplied = false;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
-        DWORD* rowData; CPluginDataInterfaceAbstract** pluginData;
-        view->GetTransferVariables(transferFile, transferIsDir, transferBuffer, transferLength, rowData, pluginData, transferColumn);
+        DWORD* rowData;
+        view->GetTransferVariables(transferFile, transferIsDir, transferBuffer, transferLength, rowData, transferListing, transferColumn);
         view->SetPluginSimpleIconCallback(PlaceholderIndex);
-        if (view->GetViewMode() != VIEW_MODE_DETAILED) return;
+        const bool detailed = view->GetViewMode() == VIEW_MODE_DETAILED;
+        if (shortenResultLabels) {
+            // Samandarin 0.16 supports a display callback on column zero in Brief and
+            // Detailed views. Its bundled Salamatrix FS installs it the same way.
+            if (auto* name = const_cast<CColumn*>(view->GetColumn(0))) {
+                name->GetText = ColumnText;
+                name->ID = COLUMN_ID_CUSTOM;
+                name->CustomData = separateSortKey | (detailed && (VisibleMetadataColumns() & ColumnExtension)
+                                                    ? compactStemColumn : compactNameColumn);
+            }
+        }
+        if (!detailed) { ConfigureLabels(view, left); return; }
         for (int i = view->GetColumnsCount() - 1; i > 0; --i)
             view->DeleteColumn(i);
         const unsigned visible = VisibleMetadataColumns();
@@ -244,6 +344,70 @@ public:
             hasCustom |= view->GetColumn(i)->ID == COLUMN_ID_CUSTOM;
         if (filteredRanks && !hasCustom)
             InsertResultColumn(view, left, rankColumn, "Rank", true);
+        ConfigureLabels(view, left);
+    }
+
+    void ConfigureLabels(CSalamanderViewAbstract* view, BOOL left) {
+        if (!shortenResultLabels || !page) return;
+        layout.window = ResultLayoutWindow(left);
+        layout.viewport = layout.Width();
+        if (!layout.viewport) return;
+        const UINT dpi = GetDpiForWindow(layout.window);
+        if (!layout.dc || layout.dpi != dpi) {
+            if (layout.dc) DeleteDC(layout.dc);
+            if (layout.font) DeleteObject(layout.font);
+            layout.font = nullptr;
+            layout.dpi = dpi;
+            layout.dc = CreateCompatibleDC(nullptr);
+            if (!layout.dc) return;
+            LOGFONTW lf{};
+            if (SystemParametersInfoForDpi(SPI_GETICONTITLELOGFONT, sizeof(lf), &lf, 0, dpi))
+                layout.font = CreateFontIndirectW(&lf);
+            SelectObject(layout.dc, layout.font ? layout.font : GetStockObject(DEFAULT_GUI_FONT));
+        }
+        auto* name = const_cast<CColumn*>(view->GetColumn(0));
+        CColumn* parent = nullptr;
+        int available = layout.viewport;
+        for (int i = 1; i < view->GetColumnsCount(); ++i) {
+            auto* col = const_cast<CColumn*>(view->GetColumn(i));
+            if (col->ID == COLUMN_ID_CUSTOM && BaseColumn(col->CustomData) == 0) parent = col;
+            else available -= col->Width ? col->Width : TextWidth(layout.dc, col->Name) + MulDiv(32, dpi, 96);
+        }
+        // The host clips fixed cells using SPACE_WIDTH (10 px at 96 DPI),
+        // with extra space for the icon and focus frame in column zero.
+        const int pad = MulDiv(10, dpi, 96), namePad = pad + MulDiv(20, dpi, 96);
+        int nameWidth = TextWidth(layout.dc, name->Name) + namePad;
+        int parentWidth = parent ? TextWidth(layout.dc, parent->Name) + pad : 0;
+        for (const auto& row : page->rows) {
+            nameWidth = (std::max)(nameWidth, TextWidth(layout.dc, row.displayName) + namePad);
+            if (parent) parentWidth = (std::max)(parentWidth, TextWidth(layout.dc, row.displayParent) + pad);
+        }
+        const int minimum = MulDiv(84, dpi, 96);
+        available = (std::max)(available, minimum * (parent ? 2 : 1));
+        const auto savedName = columnWidths[left != FALSE].find(compactNameColumn);
+        if (savedName != columnWidths[left != FALSE].end() && savedName->second.fixed) {
+            name->FixedWidth = TRUE;
+            name->Width = savedName->second.width;
+        }
+        const bool fixedName = name->FixedWidth && name->Width;
+        const bool fixedParent = parent && parent->FixedWidth && parent->Width;
+        if (fixedName) nameWidth = name->Width;
+        if (fixedParent) parentWidth = parent->Width;
+        if (!fixedName && !fixedParent && nameWidth + parentWidth > available) {
+            nameWidth = (std::min)(nameWidth, (std::max)(available / 2, available - parentWidth));
+            parentWidth = (std::min)(parentWidth, available - nameWidth);
+        } else if (!fixedName) nameWidth = (std::min)(nameWidth, available - parentWidth);
+        else if (!fixedParent) parentWidth = (std::min)(parentWidth, available - nameWidth);
+        if (!fixedName) nameWidth = (std::max)(minimum, nameWidth);
+        if (parent && !fixedParent) parentWidth = (std::max)(minimum, parentWidth);
+        layout.name = (std::max)(1, nameWidth - namePad);
+        layout.parent = (std::max)(1, parentWidth - pad);
+        // The 0.16 host measures custom column zero without its file icon.
+        // Supply the calculated cell width so the retained suffix fits as well.
+        if (view->GetViewMode() == VIEW_MODE_DETAILED && !fixedName) {
+            name->Width = static_cast<WORD>((std::clamp)(nameWidth, namePad + 12, 65535));
+            name->FixedWidth = TRUE;
+        }
     }
     void WINAPI ColumnFixedWidthShouldChange(BOOL left, const CColumn* column, int fixed) override {
         auto& widths = columnWidths[left != FALSE];
@@ -252,8 +416,17 @@ public:
     }
     void WINAPI ColumnWidthWasChanged(BOOL left, const CColumn* column, int width) override {
         auto& widths = columnWidths[left != FALSE];
-        if (column->ID == COLUMN_ID_CUSTOM)
-            widths[BaseColumn(column->CustomData)].width = width;
+        if (column->ID == COLUMN_ID_CUSTOM) {
+            const auto id = BaseColumn(column->CustomData);
+            widths[id].width = width;
+            const auto dpi = layout.window ? GetDpiForWindow(layout.window) : 96;
+            if (id == 0) layout.parent = width - MulDiv(10, dpi, 96);
+            if (id == compactNameColumn || id == compactStemColumn) {
+                const int pixels = width - MulDiv(30, dpi, 96);
+                if (pixels != layout.name) widths[compactNameColumn] = {static_cast<unsigned>(width), true};
+                layout.name = pixels;
+            }
+        }
     }
     BOOL WINAPI GetInfoLineContent(int panel, const CFileData*, BOOL, int files, int dirs, BOOL,
                                    const CQuadWord&, char* buffer, DWORD*, int& hotCount) override {
@@ -368,6 +541,19 @@ public:
         return TRUE;
     }
 };
+LabelLayout* CurrentLayout() {
+    auto* listing = transferListing ? static_cast<ListingData*>(*transferListing) : nullptr;
+    return listing ? &listing->layout : nullptr;
+}
+}
+
+bool ResultLayoutResized(CPluginDataInterfaceAbstract* data) {
+    if (!data || !shortenResultLabels) return false;
+    auto& layout = static_cast<ListingData*>(data)->layout;
+    const int width = layout.Width();
+    if (!width || (width == layout.viewport && GetDpiForWindow(layout.window) == layout.dpi)) return false;
+    layout.viewport = width;
+    return true;
 }
 
 bool TakeNativeOrderUpdate(CPluginDataInterfaceAbstract* data, unsigned sort)
@@ -416,7 +602,8 @@ ResultPage::ResultPage(SearchReply&& reply, std::shared_ptr<AvailabilityPage> ch
             sprintf_s(rank, "%0*llu  ", rankWidth, static_cast<unsigned long long>(reply.key.offset) + rows.size() + 1);
             prefix = rank;
         }
-        auto name = prefix + DisplayText(hit.name, MAX_PATH - 5 - prefix.size());
+        const size_t room = MAX_PATH - 5 - prefix.size() - (UsesRankedNames(sort) && hit.directory ? 1 : 0);
+        auto name = prefix + DisplayText(hit.name, room);
         if (UsesRankedNames(sort) && hit.directory) name += "\\";
         auto parent = DisplayText(ParentOf(hit), TRANSFER_BUFFER_MAX - 1);
         ResultRow row{std::move(hit), std::move(name), std::move(parent),
@@ -479,7 +666,7 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
             const auto ticks = item.hit.modified.value_or(0);
             row.LastWrite = {static_cast<DWORD>(ticks), static_cast<DWORD>(ticks >> 32)};
             row.NameLen = static_cast<unsigned>(name.size());
-            char* dot = std::strrchr(row.Name, '.');
+            char* dot = item.hit.name.find_last_of(L'.') == std::wstring::npos ? nullptr : std::strrchr(row.Name, '.');
             row.Ext = dot ? dot + 1 : row.Name + row.NameLen;
             // Samandarin filters its native rows by hidden/system attributes.
             // Keep indexed attributes in the display column so enabling it

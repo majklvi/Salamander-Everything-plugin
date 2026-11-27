@@ -165,6 +165,9 @@ public:
     CPluginInterfaceForThumbLoaderAbstract* WINAPI GetInterfaceForThumbLoader() override { return nullptr; }
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
+        DWORD shorten = 0;
+        shortenResultLabels = key && registry->GetValue(key, "ShortenResultLabels", REG_DWORD,
+                                                        &shorten, sizeof(shorten)) && shorten != 0;
         DWORD delay = defaultNetworkRetrySeconds;
         if (!key || !registry->GetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay)) ||
             delay > maxNetworkRetrySeconds) delay = defaultNetworkRetrySeconds;
@@ -204,6 +207,8 @@ public:
     void WINAPI SaveConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         const DWORD mask = VisibleMetadataColumns();
         if (!key) return;
+        const DWORD shorten = shortenResultLabels;
+        registry->SetValue(key, "ShortenResultLabels", REG_DWORD, &shorten, sizeof(shorten));
         const DWORD delay = NetworkRetrySeconds();
         registry->SetValue(key, "NetworkRetrySeconds", REG_DWORD, &delay, sizeof(delay));
         const DWORD checkPaths = AvailabilityChecksEnabled();

@@ -22,6 +22,8 @@ const std::vector<EverythingFilter>& FilterCatalog() {
     return filters;
 }
 
+HWND layoutWindow = nullptr;
+HWND ResultLayoutWindow(BOOL) { return layoutWindow; }
 void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
 void SubmitSearch(SearchKey key, const std::wstring& text) { submitted = key; submittedText = text; }
@@ -406,6 +408,44 @@ void CheckAvailabilityTransitions()
 int main()
 {
     try {
+        shortenResultLabels = true;
+        const std::wstring boundary = std::wstring(18, L'a') + L"\U0001F680" + std::wstring(30, L'b') + L".pdf";
+        const std::wstring folder = LR"(C:\projects\)" + std::wstring(75, L'x') + LR"(\latest)";
+        SearchReply compactReply{};
+        compactReply.key.sort = EVERYTHING_SORT_NAME_ASCENDING;
+        compactReply.hits.push_back({boundary, folder + L"\\" + boundary, false});
+        auto compactPage = std::make_shared<ResultPage>(std::move(compactReply));
+        const auto& row = compactPage->rows.front();
+        Check(row.displayParent == DisplayText(folder, 1023) && row.hit.path == folder + L"\\" + boundary,
+              "the original parent and filename survive layout changes");
+        TestDirectory masked;
+        Check(ListResultPage(compactPage, &masked, masked.data, true) &&
+              masked.files.front().Name == DisplayText(boundary, MAX_PATH - 5), "panel masks receive the full filename");
+        layoutWindow = CreateWindowW(L"STATIC", nullptr, WS_POPUP, 0, 0, 320, 20, nullptr, nullptr, nullptr, nullptr);
+        Check(layoutWindow != nullptr, "created a measurable viewport");
+        SetVisibleMetadataColumns(ColumnParent);
+        TestView narrow;
+        narrow.listing = masked.data;
+        masked.data->SetupView(TRUE, &narrow, nullptr, nullptr);
+        auto nameCell = narrow.Cell(0, masked.files.front());
+        auto folderCell = narrow.Cell(1, masked.files.front());
+        Check(nameCell.size() < strlen(masked.files.front().Name) && nameCell.substr(nameCell.size()-4) == ".pdf" &&
+              folderCell.size() < row.displayParent.size() && folderCell.substr(folderCell.size()-6) == "latest",
+              "narrow Name and Parent folder cells retain both ends");
+        SetWindowPos(layoutWindow, nullptr, 0, 0, 1800, 20, SWP_NOACTIVATE | SWP_NOZORDER);
+        Check(ResultLayoutResized(masked.data), "resizing schedules a new layout");
+        TestView compactView;
+        compactView.listing = masked.data;
+        masked.data->SetupView(TRUE, &compactView, nullptr, nullptr);
+        Check(compactView.Cell(0, masked.files.front()) == masked.files.front().Name &&
+              compactView.Cell(1, masked.files.front()) == row.displayParent,
+              "wide cells show the complete name and path");
+        compactView.columns[0].CustomData |= sortKeyFlag;
+        Check(compactView.Cell(0, masked.files.front()) == DisplayText(boundary, 255), "Name header sorts on the full text");
+        DestroyWindow(layoutWindow);
+        layoutWindow = nullptr;
+        SetVisibleMetadataColumns(defaultMetadataColumns);
+        shortenResultLabels = false;
         RunChecks();
         CheckMetadata();
         CheckAvailabilityTransitions();

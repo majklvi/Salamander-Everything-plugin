@@ -21,6 +21,8 @@ inline constexpr unsigned allMetadataColumns = ColumnSize | ColumnModified | Col
     ColumnDateRun | ColumnRecentlyChanged | ColumnParent;
 inline constexpr unsigned defaultMetadataColumns = ColumnModified;
 
+inline bool shortenResultLabels = false;
+
 // Host UI thread only. Changing the mask also updates open searches.
 unsigned VisibleMetadataColumns();
 void SetVisibleMetadataColumns(unsigned mask);

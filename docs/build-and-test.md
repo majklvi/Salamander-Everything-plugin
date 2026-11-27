@@ -193,3 +193,15 @@ In the revised Settings dialog, three horizontal rules follow the Result columns
 Two worker-level checks used Windows SMB on localhost. A path on a nonexistent share reached Missing after 60.06 seconds. A missing file on an accessible share was still Pending after three seconds. Creating that file before the retry produced Present at 60.06 seconds, without a new query. The listing regression checked the pending overlay index and the disabled setting. Windows loaded both overlay resources from the release binary at 16, 32 and 48 pixels. These checks used loopback SMB rather than a physical NAS.
 
 With the configurable retry delay, a missing file on loopback SMB reached Missing after 5.031 seconds at the new default. Changing an outstanding 60-second wait to 2 seconds after its first second completed the check at 2.031 seconds from the start. Setting the delay to zero completed both attempts in 16 milliseconds.
+
+### Sorting visually identical compact names
+
+In Open Samandarin 0.16 x64 with Everything 1.5, the query `esCompactProbe27` returned three files. Their names differed only in the middle (`Alpha`, `Mike`, and `Zulu`). With **Shorten long names and parent folders** enabled, all three displayed labels were identical. The disk panel established their respective sizes as 19, 31, and 7 bytes.
+
+The Everything panel showed 19, 31, and 7 bytes in ascending Name order. Clicking the Name header changed the status to descending and the sizes to 7, 31, and 19 bytes. Clicking it again restored ascending order and the original sequence.
+
+### Compact labels at different panel widths
+
+The result-listing regression uses a Win32 viewport with Name and Parent folder visible. At 320 pixels both labels were shortened and kept their suffixes. Widening the same viewport to 1800 pixels triggered a layout update and both full values reappeared for the same result. The Name sort callback returned the original filename.
+
+In Open Samandarin 0.16 x64 with Everything 1.5, the live query `WidthCheck27` returned one file named `WidthCheck27 - Annual catalogue for the November exhibition - approved.txt` in `C:\Users\majkl\Desktop\PanelWidthCheck\November archive\Final proofs`. The initial live check found that the host clipped the extension because the Name cell reserved two pixels less padding than the renderer. After correcting the padding, dragging the splitter to about 365 pixels shortened both labels in the middle. Dragging it back to about 1350 pixels restored the exact full filename, including .txt, and the full parent path in the same row. The query was not re-entered or manually refreshed.

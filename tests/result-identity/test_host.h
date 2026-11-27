@@ -64,6 +64,8 @@ class TestView final : public CSalamanderViewAbstract {
 public:
     std::vector<CColumn> columns;
 
+    CPluginDataInterfaceAbstract* listing = nullptr;
+
     TestView() {
         CColumn name{};
         name.ID = COLUMN_ID_NAME;
@@ -91,7 +93,7 @@ public:
         text = buffer;
         len = &length;
         rowData = nullptr;
-        data = nullptr;
+        data = &listing;
         column = &customData;
     }
     void WINAPI SetPluginSimpleIconCallback(FGetPluginIconIndex) override {}
