@@ -162,6 +162,10 @@ public:
     CPluginInterfaceForThumbLoaderAbstract* WINAPI GetInterfaceForThumbLoader() override { return nullptr; }
     void WINAPI ReleasePluginDataInterface(CPluginDataInterfaceAbstract* data) override { ReleaseResultListing(data); }
     void WINAPI LoadConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
+        DWORD checkPaths = 1;
+        const bool hasCheckSetting = key && registry->GetValue(key, "CheckAvailability", REG_DWORD,
+                                                              &checkPaths, sizeof(checkPaths));
+        SetAvailabilityChecksEnabled(!hasCheckSetting || checkPaths != 0);
         DWORD limit = defaultResultLimit;
         if (key && registry->GetValue(key, "ResultLimit", REG_DWORD, &limit, sizeof(limit)) && limit <= INT_MAX)
             configuredResultLimit = limit;
@@ -193,6 +197,8 @@ public:
     void WINAPI SaveConfiguration(HWND, HKEY key, CSalamanderRegistryAbstract* registry) override {
         const DWORD mask = VisibleMetadataColumns();
         if (!key) return;
+        const DWORD checkPaths = AvailabilityChecksEnabled();
+        registry->SetValue(key, "CheckAvailability", REG_DWORD, &checkPaths, sizeof(checkPaths));
         registry->SetValue(key, "ResultLimit", REG_DWORD, &configuredResultLimit, sizeof(configuredResultLimit));
         const auto source = static_cast<DWORD>(preferredSource);
         registry->SetValue(key, "EverythingSource", REG_DWORD, &source, sizeof(source));

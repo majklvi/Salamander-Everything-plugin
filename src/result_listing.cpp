@@ -315,7 +315,8 @@ public:
     }
     BOOL WINAPI HasSimplePluginIcon(CFileData& file, BOOL) override {
         const auto* row = ListingRow(&file);
-        return !row || row->owner->availability->entries[row->index].state != PathState::Present;
+        return !row || (row->owner->availability &&
+                        row->owner->availability->entries[row->index].state != PathState::Present);
     }
     HICON WINAPI GetPluginIcon(const CFileData* file, int size, BOOL& destroy) override {
         destroy = FALSE;
@@ -402,7 +403,7 @@ unsigned EndHeaderSortObservation()
     return observedColumnSort ? observedColumnSort : transferColumn ? HeaderColumnSort(*transferColumn) : 0;
 }
 
-ResultPage::ResultPage(SearchReply&& reply) : availability(std::make_shared<AvailabilityPage>(reply.hits.size())), total(reply.total), sort(reply.key.sort)
+ResultPage::ResultPage(SearchReply&& reply) : availability(AvailabilityChecksEnabled() ? std::make_shared<AvailabilityPage>(reply.hits.size()) : nullptr), total(reply.total), sort(reply.key.sort)
 {
     properties = std::move(reply.properties);
     rows.reserve(reply.hits.size());
@@ -483,7 +484,7 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
             // Keep indexed attributes in the display column so enabling it
             // preserves the membership of the Everything result page.
             row.Attr = item.hit.directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-            row.IconOverlayIndex = page->availability->entries[item.index].state == PathState::Missing
+            row.IconOverlayIndex = page->availability && page->availability->entries[item.index].state == PathState::Missing
                                    ? 0 : ICONOVERLAYINDEX_NOTUSED;
             row.PluginData = reinterpret_cast<DWORD_PTR>(&item);
             // A single group preserves Everything's ranking across folders and files.

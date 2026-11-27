@@ -170,12 +170,12 @@ public:
     }
 
     void RefreshAvailability() {
-        if (page && page->availability->changed.exchange(false))
+        if (page && page->availability && page->availability->changed.exchange(false))
             gGeneral->PostRefreshPanelFS(this);
     }
 
     void Poll() {
-        if (page) {
+        if (page && page->availability) {
             for (size_t index : page->availability->observed)
                 CheckResultPath(page->availability, index, page->rows[index].hit.path);
         }

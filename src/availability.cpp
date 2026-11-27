@@ -7,6 +7,7 @@
 #include <unordered_map>
 
 namespace {
+bool checksEnabled = true; // UI thread preference. Workers only own queued jobs.
 constexpr ULONGLONG retryMs = 30000;
 struct Job {
     std::weak_ptr<AvailabilityPage> page;
@@ -96,6 +97,12 @@ struct Lane {
         }
     }
 
+    void CancelPending() {
+        std::lock_guard lock(mutex);
+        queue.clear();
+        if (worker.joinable()) CancelSynchronousIo(worker.native_handle());
+    }
+
     void Stop() {
         {
             std::lock_guard lock(mutex);
@@ -115,6 +122,7 @@ Lane localPaths, networkPaths;
 }
 
 void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, size_t index, const std::wstring& path) {
+    if (!checksEnabled || !page) return;
     auto& entry = page->entries[index];
     auto now = GetTickCount64();
     const auto next = entry.nextCheck.load();
@@ -131,6 +139,20 @@ void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, size_t index
         return; // Keep the generic icon if resources are exhausted.
     }
     lane.ready.notify_one();
+}
+
+bool AvailabilityChecksEnabled() {
+    return checksEnabled;
+}
+
+bool SetAvailabilityChecksEnabled(bool enabled) {
+    if (checksEnabled == enabled) return false;
+    checksEnabled = enabled;
+    if (!enabled) {
+        localPaths.CancelPending();
+        networkPaths.CancelPending();
+    }
+    return true;
 }
 
 void StopAvailabilityChecks() {

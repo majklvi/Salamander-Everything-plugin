@@ -181,3 +181,9 @@ On Open Samandarin 0.16 x64, launch an isolated portable profile that restores a
 
 - Search for `exact:salamand.exe`, click Size, verify all seven results are sorted with their icons visible, then click the title-bar close button.
 - Search an unavailable UNC share, verify the folder and seven files show red crosses, press Down to focus the results and close with Alt+F4.
+
+### Toggling availability checks with a live query
+
+In Open Samandarin 0.16 x64 with Everything 1.5, the query `\\localhost\MkvMetaEfuE2E$` displayed one unavailable folder and seven unavailable files. All eight icons had red crosses. Clearing **Check availability and mark unavailable items** and confirming with **OK** removed all eight crosses. Reopening Settings showed the checkbox cleared. Enabling it and confirming restored all eight crosses. The query was entered only once, and the status line showed eight of eight results after each change.
+
+In the revised Settings dialog, three horizontal rules follow the Result columns, Search results, and Availability captions. In the dark Samandarin 0.16 x64 test window, all three appeared as subdued single-pixel lines aligned with the captions. Their dark color matches the native Panels configuration page (RGB 56, 56, 56).

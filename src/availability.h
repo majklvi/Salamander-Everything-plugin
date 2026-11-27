@@ -22,4 +22,6 @@ struct AvailabilityPage {
 
 // Called when a placeholder is painted, or a previously painted row needs rechecking.
 void CheckResultPath(const std::shared_ptr<AvailabilityPage>& page, size_t index, const std::wstring& path);
+bool AvailabilityChecksEnabled();
+bool SetAvailabilityChecksEnabled(bool enabled);
 void StopAvailabilityChecks();

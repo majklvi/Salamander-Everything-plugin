@@ -3,14 +3,15 @@
 
 IDI_UNAVAILABLE ICON "unavailable.ico"
 
-IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 197
+IDD_SEARCH_SETTINGS DIALOGEX 0, 0, 233, 228
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "Everything Search Settings"
 FONT 9, "Segoe UI"
 BEGIN
     LTEXT           "Everything source", -1, 8, 10, 75, 11
     COMBOBOX        IDC_SOURCE, 86, 7, 140, 72, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Result columns", -1, 8, 28, 100, 10, WS_GROUP
+    LTEXT           "Result columns", -1, 8, 27, 55, 8, WS_GROUP
+    CONTROL         "", IDC_COLUMNS_RULE, "Static", SS_ETCHEDHORZ | WS_GROUP, 65, 31, 161, 1
     AUTOCHECKBOX    "&Size", IDC_FILE_SIZE, 15, 43, 91, 11
     AUTOCHECKBOX    "&Parent folder", IDC_PARENT_FOLDER, 15, 55, 91, 11
     AUTOCHECKBOX    "&Extension", IDC_EXTENSION, 15, 67, 91, 11
@@ -22,16 +23,21 @@ BEGIN
     AUTOCHECKBOX    "Date r&un", IDC_DATE_RUN, 112, 67, 110, 11
     AUTOCHECKBOX    "Date recentl&y changed", IDC_RECENTLY_CHANGED, 112, 79, 110, 11
     AUTOCHECKBOX    "File &list", IDC_FILE_LIST, 112, 91, 110, 11
-    LTEXT           "Current search &order", IDC_ORDER_LABEL, 8, 123, 77, 12
-    COMBOBOX        IDC_ORDER, 86, 120, 140, 165, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    AUTOCHECKBOX    "&Descending", IDC_DESCENDING, 86, 138, 128, 11
-    LTEXT           "Maximum res&ults", -1, 8, 157, 77, 11
-    EDITTEXT        IDC_RESULT_LIMIT, 86, 154, 60, 14, ES_NUMBER | ES_AUTOHSCROLL
-    LTEXT           "0 = unlimited", -1, 150, 157, 76, 11
-    PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 175, 65, 15
-    PUSHBUTTON      "&Help", IDHELP, 77, 175, 39, 15
-    DEFPUSHBUTTON   "OK", IDOK, 120, 175, 50, 15
-    PUSHBUTTON      "Cancel", IDCANCEL, 176, 175, 50, 15
+    LTEXT           "Search results", -1, 8, 117, 52, 8, WS_GROUP
+    CONTROL         "", IDC_SEARCH_RULE, "Static", SS_ETCHEDHORZ | WS_GROUP, 62, 121, 164, 1
+    LTEXT           "Current search &order", IDC_ORDER_LABEL, 8, 132, 77, 12
+    COMBOBOX        IDC_ORDER, 86, 129, 140, 165, CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    AUTOCHECKBOX    "&Descending", IDC_DESCENDING, 86, 147, 128, 11
+    LTEXT           "Maximum res&ults", -1, 8, 165, 77, 11
+    EDITTEXT        IDC_RESULT_LIMIT, 86, 162, 60, 14, ES_NUMBER | ES_AUTOHSCROLL
+    LTEXT           "0 = unlimited", -1, 150, 165, 76, 11
+    LTEXT           "Availability", -1, 8, 181, 44, 8, WS_GROUP
+    CONTROL         "", IDC_AVAILABILITY_RULE, "Static", SS_ETCHEDHORZ | WS_GROUP, 54, 185, 172, 1
+    AUTOCHECKBOX    "Check availability and mark unavailable items", IDC_CHECK_AVAILABILITY, 15, 192, 211, 11
+    PUSHBUTTON      "Ad&vanced...", IDC_ADVANCED, 8, 207, 65, 15
+    PUSHBUTTON      "&Help", IDHELP, 77, 207, 39, 15
+    DEFPUSHBUTTON   "OK", IDOK, 120, 207, 50, 15
+    PUSHBUTTON      "Cancel", IDCANCEL, 176, 207, 50, 15
 END
 
 IDD_ADVANCED DIALOGEX 0, 0, 249, 213

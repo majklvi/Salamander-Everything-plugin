@@ -4,7 +4,9 @@
 #include "modern_search.h"
 #include <set>
 #include "settings_resource.h"
+#include "availability.h"
 #include "result_order.h"
+#include "spl_gui.h"
 #include <dwmapi.h>
 #include <uxtheme.h>
 
@@ -209,6 +211,17 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         auto* fs = state.fs;
         SetWindowLongPtrW(dialog, DWLP_USER, lp);
         UpdateTheme(dialog, state.dark);
+        gGUI->ArrangeHorizontalLines(dialog);
+        for (int id : {IDC_COLUMNS_RULE, IDC_SEARCH_RULE, IDC_AVAILABILITY_RULE}) {
+            const HWND line = GetDlgItem(dialog, id);
+            const auto style = GetWindowLongPtrW(line, GWL_STYLE);
+            SetWindowLongPtrW(line, GWL_STYLE, (style & ~SS_TYPEMASK) | SS_OWNERDRAW);
+            // STATIC adds a non-client edge when an etched control is created.
+            SetWindowLongPtrW(line, GWL_EXSTYLE, GetWindowLongPtrW(line, GWL_EXSTYLE) & ~WS_EX_STATICEDGE);
+            SetWindowPos(line, nullptr, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE |
+                         SWP_NOZORDER | SWP_NOACTIVATE);
+        }
+        CheckDlgButton(dialog, IDC_CHECK_AVAILABILITY, AvailabilityChecksEnabled() ? BST_CHECKED : BST_UNCHECKED);
         SetDlgItemInt(dialog, IDC_RESULT_LIMIT, configuredResultLimit, FALSE);
         const auto mask = VisibleMetadataColumns();
         for (const auto& check : checks)
@@ -230,6 +243,20 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
     auto* state = reinterpret_cast<SettingsState*>(GetWindowLongPtrW(dialog, DWLP_USER));
     if (!state) return FALSE;
     if (const auto brush = ThemeMessage(dialog, msg, wp, lp, state->dark)) return brush;
+    if (msg == WM_DRAWITEM && (wp == IDC_COLUMNS_RULE || wp == IDC_SEARCH_RULE || wp == IDC_AVAILABILITY_RULE)) {
+        const auto& item = *reinterpret_cast<const DRAWITEMSTRUCT*>(lp);
+        RECT line = item.rcItem;
+        if (state->dark) {
+            // Match Samandarin's PaintDarkStaticFrame on the Panels configuration page.
+            line.top += (line.bottom - line.top) / 2;
+            line.bottom = line.top + 1;
+            SetDCBrushColor(item.hDC, RGB(0x38, 0x38, 0x38));
+            FillRect(item.hDC, &line, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
+        } else {
+            DrawEdge(item.hDC, &line, EDGE_ETCHED, BF_TOP);
+        }
+        return TRUE;
+    }
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_SOURCE && HIWORD(wp) == CBN_SELCHANGE)
         SourceChanged(dialog, *state);
     if (msg == WM_COMMAND && LOWORD(wp) == IDC_ADVANCED) {
@@ -261,7 +288,9 @@ INT_PTR CALLBACK SettingsProc(HWND dialog, UINT msg, WPARAM wp, LPARAM lp)
         std::vector<Property> selected;
         for (auto id : state->selected)
             if (auto* p = PropertyForOrder(id)) selected.push_back(*p);
-        const bool changed = preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
+        const bool availabilityChanged = SetAvailabilityChecksEnabled(
+            IsDlgButtonChecked(dialog, IDC_CHECK_AVAILABILITY) == BST_CHECKED);
+        const bool changed = availabilityChanged || preferredSource != DialogSource(dialog) || visibleProperties != selected || configuredResultLimit != limit;
         configuredResultLimit = limit;
         preferredSource = DialogSource(dialog);
         visibleProperties = std::move(selected);

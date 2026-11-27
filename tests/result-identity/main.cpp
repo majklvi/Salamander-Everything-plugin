@@ -364,6 +364,19 @@ void CheckAvailabilityTransitions()
         while (!page->changed && GetTickCount64() < deadline) Sleep(5);
         return page->changed.exchange(false) && page->entries[0].state == expected;
     };
+    SetAvailabilityChecksEnabled(false);
+    CheckResultPath(page, 0, file);
+    Check(page->observed.empty() && !page->entries[0].nextCheck,
+          "disabled availability checks do not enqueue paths");
+    SearchReply reply{};
+    reply.hits.push_back({L"fixture.txt", file, false});
+    auto unchecked = std::make_shared<ResultPage>(std::move(reply));
+    TestDirectory listing;
+    Check(!unchecked->availability && ListResultPage(unchecked, &listing, listing.data) &&
+          listing.files.size() == 1 && listing.files[0].IconOverlayIndex == ICONOVERLAYINDEX_NOTUSED &&
+          !listing.data->HasSimplePluginIcon(listing.files[0], FALSE),
+          "disabled checks keep native icon loading and omit the availability overlay");
+    SetAvailabilityChecksEnabled(true);
     bool present = observe(PathState::Present);
     bool removed = DeleteFileW(file) != FALSE;
     bool missing = removed && observe(PathState::Missing);
