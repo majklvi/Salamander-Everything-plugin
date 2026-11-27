@@ -11,15 +11,23 @@ std::string DisplayText(std::wstring_view text, size_t limit);
 void BeginHeaderSortObservation();
 unsigned EndHeaderSortObservation();
 
+#include "availability.h"
+
+struct ResultPage;
 struct ResultRow {
     SearchHit hit;
     std::string displayName;
     std::string displayParent;
     unsigned rank;
+    const ResultPage* owner;
+    size_t index;
 };
 
 struct ResultPage {
     explicit ResultPage(SearchReply&& reply);
+    ResultPage(const ResultPage&) = delete;
+    ResultPage& operator=(const ResultPage&) = delete;
+    std::shared_ptr<AvailabilityPage> availability;
     std::vector<ResultRow> rows;
     std::uint32_t total;
     std::uint32_t sort;

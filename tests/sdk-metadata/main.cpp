@@ -6,6 +6,7 @@
 
 HINSTANCE gInstance;
 void DeliverSearchReply(SearchReply&&) {}
+void RefreshAvailabilityIcons() {}
 bool RefreshOpenSearches() { return false; }
 extern "C" void PrepareUnicodeQuery2(DWORD);
 

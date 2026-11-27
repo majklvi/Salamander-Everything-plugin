@@ -121,6 +121,8 @@ std::string FormatMetadata(const SearchHit& hit, MetadataColumn flag)
 
 // Pointers to global host transfer slots, filled immediately before GetText.
 const CFileData** transferFile = nullptr;
+int* transferIsDir = nullptr;
+
 char* transferBuffer = nullptr;
 int* transferLength = nullptr;
 DWORD* transferColumn = nullptr;
@@ -128,6 +130,14 @@ DWORD* transferColumn = nullptr;
 const ResultRow* ListingRow(const CFileData* file)
 {
     return file ? reinterpret_cast<const ResultRow*>(file->PluginData) : nullptr;
+}
+
+int WINAPI PlaceholderIndex()
+{
+    const auto* row = ListingRow(transferFile ? *transferFile : nullptr);
+    if (!row) return transferIsDir && *transferIsDir ? 1 : 0;
+    CheckResultPath(row->owner->availability, row->index, row->hit.path);
+    return row->hit.directory ? 1 : 0;
 }
 
 // Column zero is Parent folder. Each metadata column uses its one-based
@@ -199,6 +209,8 @@ void InsertResultColumn(CSalamanderViewAbstract* view, BOOL left, DWORD id, cons
 class ListingData final : public CPluginDataInterfaceAbstract {
 public:
     explicit ListingData(std::shared_ptr<const ResultPage> value) : page(std::move(value)) {}
+    ~ListingData() { if (placeholders) ImageList_Destroy(placeholders); }
+    HIMAGELIST placeholders = nullptr;
     std::shared_ptr<const ResultPage> page;
     std::string filterLabel;
     bool filteredRanks = false;
@@ -206,9 +218,10 @@ public:
     bool nativeOrderApplied = false;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
+        DWORD* rowData; CPluginDataInterfaceAbstract** pluginData;
+        view->GetTransferVariables(transferFile, transferIsDir, transferBuffer, transferLength, rowData, pluginData, transferColumn);
+        view->SetPluginSimpleIconCallback(PlaceholderIndex);
         if (view->GetViewMode() != VIEW_MODE_DETAILED) return;
-        int* isDir; DWORD* rowData; CPluginDataInterfaceAbstract** pluginData;
-        view->GetTransferVariables(transferFile, isDir, transferBuffer, transferLength, rowData, pluginData, transferColumn);
         for (int i = view->GetColumnsCount() - 1; i > 0; --i)
             view->DeleteColumn(i);
         const unsigned visible = VisibleMetadataColumns();
@@ -283,9 +296,44 @@ public:
     void WINAPI ReleasePluginData(CFileData&, BOOL) override {}
     void WINAPI GetFileDataForUpDir(const char*, CFileData&) override {}
     BOOL WINAPI GetFileDataForNewDir(const char*, CFileData&) override { return FALSE; }
-    HIMAGELIST WINAPI GetSimplePluginIcons(int) override { return nullptr; }
-    BOOL WINAPI HasSimplePluginIcon(CFileData&, BOOL) override { return TRUE; }
-    HICON WINAPI GetPluginIcon(const CFileData*, int, BOOL& destroy) override { destroy = FALSE; return nullptr; }
+    HIMAGELIST WINAPI GetSimplePluginIcons(int size) override {
+        if (placeholders) ImageList_Destroy(placeholders);
+        const int pixels = size == SALICONSIZE_48 ? 48 : size == SALICONSIZE_32 ? 32 : 16;
+        placeholders = ImageList_Create(pixels, pixels, ILC_COLOR32 | ILC_MASK, 2, 0);
+        if (!placeholders) return nullptr;
+        for (int kind : {SALICON_NONASSOCIATED, SALICON_DIRECTORY}) {
+            HICON icon = gGeneral->GetSalamanderIcon(kind, size);
+            int index = icon ? ImageList_AddIcon(placeholders, icon) : -1;
+            if (icon) DestroyIcon(icon);
+            if (index < 0) {
+                ImageList_Destroy(placeholders);
+                placeholders = nullptr;
+                break;
+            }
+        }
+        return placeholders;
+    }
+    BOOL WINAPI HasSimplePluginIcon(CFileData& file, BOOL) override {
+        const auto* row = ListingRow(&file);
+        return !row || row->owner->availability->entries[row->index].state != PathState::Present;
+    }
+    HICON WINAPI GetPluginIcon(const CFileData* file, int size, BOOL& destroy) override {
+        destroy = FALSE;
+        const auto* row = ListingRow(file);
+        if (!row) return nullptr;
+        // Only the host icon reader resolves the path. A PIDL preserves its Unicode spelling.
+        const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        if (FAILED(init) && init != RPC_E_CHANGED_MODE) return nullptr;
+        PIDLIST_ABSOLUTE item = nullptr;
+        HICON icon = nullptr;
+        if (SUCCEEDED(SHParseDisplayName(row->hit.path.c_str(), nullptr, &item, 0, nullptr))) {
+            gGeneral->GetFileIcon(reinterpret_cast<const char*>(item), TRUE, &icon, size, FALSE, row->hit.directory);
+            CoTaskMemFree(item);
+        }
+        if (SUCCEEDED(init)) CoUninitialize();
+        destroy = icon != nullptr;
+        return icon;
+    }
     int WINAPI CompareFilesFromFS(const CFileData* a, const CFileData* b) override {
         const auto* first = reinterpret_cast<const ResultRow*>(a->PluginData);
         const auto* second = reinterpret_cast<const ResultRow*>(b->PluginData);
@@ -354,7 +402,7 @@ unsigned EndHeaderSortObservation()
     return observedColumnSort ? observedColumnSort : transferColumn ? HeaderColumnSort(*transferColumn) : 0;
 }
 
-ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key.sort)
+ResultPage::ResultPage(SearchReply&& reply) : availability(std::make_shared<AvailabilityPage>(reply.hits.size())), total(reply.total), sort(reply.key.sort)
 {
     properties = std::move(reply.properties);
     rows.reserve(reply.hits.size());
@@ -370,7 +418,7 @@ ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key
         if (UsesRankedNames(sort) && hit.directory) name += "\\";
         auto parent = DisplayText(ParentOf(hit), TRANSFER_BUFFER_MAX - 1);
         ResultRow row{std::move(hit), std::move(name), std::move(parent),
-                      static_cast<unsigned>(reply.key.offset + rows.size() + 1)};
+                      static_cast<unsigned>(reply.key.offset + rows.size() + 1), this, rows.size()};
         rows.push_back(std::move(row));
     }
 }
@@ -407,7 +455,7 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
     listing->filterLabel = DisplayText(filterName, 160);
     listing->filtered = panelFilter;
     listing->filteredRanks = panelFilter && page && UsesRankedNames(page->sort);
-    DWORD valid = VALID_DATA_EXTENSION;
+    DWORD valid = VALID_DATA_EXTENSION | VALID_DATA_ICONOVERLAY;
     if (page) {
         for (const auto& row : page->rows) {
             if (row.hit.size) valid |= VALID_DATA_SIZE;
@@ -435,7 +483,8 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
             // Keep indexed attributes in the display column so enabling it
             // preserves the membership of the Everything result page.
             row.Attr = item.hit.directory ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_NORMAL;
-            row.IconOverlayIndex = ICONOVERLAYINDEX_NOTUSED;
+            row.IconOverlayIndex = page->availability->entries[item.index].state == PathState::Missing
+                                   ? 0 : ICONOVERLAYINDEX_NOTUSED;
             row.PluginData = reinterpret_cast<DWORD_PTR>(&item);
             // A single group preserves Everything's ranking across folders and files.
             // Open and Reveal use the original type and full path from the snapshot.

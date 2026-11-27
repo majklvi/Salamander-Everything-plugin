@@ -169,7 +169,16 @@ public:
             CancelSearch(key.instance);
     }
 
+    void RefreshAvailability() {
+        if (page && page->availability->changed.exchange(false))
+            gGeneral->PostRefreshPanelFS(this);
+    }
+
     void Poll() {
+        if (page) {
+            for (size_t index : page->availability->observed)
+                CheckResultPath(page->availability, index, page->rows[index].hit.path);
+        }
         if (!HasSearch() || pending || polling) return;
         polling = true;
         ++key.generation;
@@ -264,7 +273,7 @@ public:
     BOOL WINAPI ListCurrentPath(CSalamanderDirectoryAbstract* listing,
                                 CPluginDataInterfaceAbstract*& data, int& icons, BOOL) override {
         data = nullptr;
-        icons = pitSimple;
+        icons = pitFromPlugin;
         // 0.16 retains the old FS listing during this call. Its normal
         // post-refresh merge uses basenames; take the full-path identities
         // before the host installs the new list, including for a manual refresh.
@@ -489,10 +498,14 @@ unsigned VisibleMetadataColumns() {
     return visibleColumns;
 }
 
+void RefreshAvailabilityIcons() {
+    for (auto& fs : instances) fs.RefreshAvailability();
+}
+
 bool RefreshOpenSearches() {
     bool active = false;
     for (auto& fs : instances) {
-        if (!fs.Query().empty()) {
+        if (fs.HasSearch()) {
             active = true;
             fs.Poll();
         }

@@ -94,6 +94,7 @@ struct SearchReply {
 void SubmitSearch(SearchKey key, const std::wstring& query);
 void RecordOpenedFile(const std::wstring& path, Source source);
 bool RefreshOpenSearches();
+void RefreshAvailabilityIcons();
 void ScheduleFileOperationRefresh();
 void CancelSearch(std::uint64_t instance);
 void ShutdownSearch();

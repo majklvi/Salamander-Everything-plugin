@@ -123,6 +123,8 @@ private:
 // Just the host operations the production adapter uses. Item pointers stay in
 // their listing and selection updates operate on those same CFileData objects.
 struct TestHost {
+    HICON GetSalamanderIcon(int, int) { return nullptr; }
+    BOOL GetFileIcon(const char*, BOOL, HICON*, int, BOOL, BOOL) { return FALSE; }
     int postedCommand = 0;
     void PostMenuExtCommand(int id, BOOL) { postedCommand = id; }
     CPluginFSInterfaceAbstract* active = nullptr;

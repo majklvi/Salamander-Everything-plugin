@@ -1,4 +1,6 @@
 #include "plugin.h"
+#include "availability.h"
+#include "settings_resource.h"
 #include "filesystem.h"
 #include "search.h"
 #include "actions.h"
@@ -119,6 +121,13 @@ public:
                     "Everything Search", MB_OK | MB_ICONINFORMATION);
     }
     void WINAPI Connect(HWND, CSalamanderConnectAbstract* host) override {
+        HICON cross[3]{};
+        for (int i = 0; i < 3; ++i) {
+            const int size = 16 * (i + 1);
+            cross[i] = static_cast<HICON>(LoadImageW(gInstance, MAKEINTRESOURCEW(IDI_UNAVAILABLE),
+                                                     IMAGE_ICON, size, size, LR_DEFAULTCOLOR));
+        }
+        gGeneral->SetPluginIconOverlays(1, cross);
         RegisterMenuIcon(host);
         host->AddMenuItem(-1, "&Open search", SALHOTKEY('E', HOTKEYF_CONTROL | HOTKEYF_SHIFT), openSearch, FALSE,
                           MENU_EVENT_TRUE, MENU_EVENT_TRUE, MENU_SKILLLEVEL_ALL);
@@ -143,6 +152,7 @@ public:
     BOOL WINAPI Release(HWND, BOOL) override {
         ShutdownEditor();
         ShutdownSearch();
+        StopAvailabilityChecks();
         return TRUE;
     }
     CPluginInterfaceForMenuExtAbstract* WINAPI GetInterfaceForMenuExt() override { return &menu; }

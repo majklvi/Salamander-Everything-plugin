@@ -25,6 +25,7 @@ constexpr wchar_t ipcClass[] = L"EverythingSearch.SDK2.Replies";
 constexpr UINT resultsMessage = WM_APP + 17;
 constexpr UINT_PTR fileOperationTimer = 1;
 constexpr UINT_PTR indexPollTimer = 2;
+constexpr UINT_PTR availabilityTimer = 3;
 constexpr UINT indexPollMs = 3000;
 bool indexPollArmed = false;
 constexpr UINT runsChangedMessage = WM_APP + 18;
@@ -94,9 +95,14 @@ void Publish(SearchReply reply)
 
 LRESULT CALLBACK UiProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
+    if (msg == WM_TIMER && wp == availabilityTimer) {
+        RefreshAvailabilityIcons();
+        return 0;
+    }
     if (msg == WM_TIMER && wp == indexPollTimer) {
         if (!RefreshOpenSearches()) {
             KillTimer(hwnd, indexPollTimer);
+            KillTimer(hwnd, availabilityTimer);
             indexPollArmed = false;
         }
         return 0;
@@ -427,8 +433,10 @@ void SubmitSearch(SearchKey key, const std::wstring& query)
     InterruptModernSearch(key.instance);
     // SDK v2 returns snapshots. Poll while queries are open so delayed index
     // updates and later saves in external editors reach the same result panel.
-    if (!indexPollArmed)
+    if (!indexPollArmed) {
         indexPollArmed = SetTimer(ui, indexPollTimer, indexPollMs, nullptr) != 0;
+        SetTimer(ui, availabilityTimer, 250, nullptr);
+    }
     {
         std::lock_guard lock(queues);
         RemovePending(key.instance);

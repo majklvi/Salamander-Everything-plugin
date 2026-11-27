@@ -33,7 +33,7 @@ target_compile_definitions(EverythingSdkV3 PRIVATE EVERYTHING3_LIB UNICODE _UNIC
 set_target_properties(EverythingSdkV3 PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 target_include_directories(EverythingSdkV3 SYSTEM PUBLIC third_party/everything-sdk-v3/include)
 
-add_library(EverythingSearch MODULE src/modern_search.cpp src/plugin.cpp src/filesystem.cpp src/editor.cpp
+add_library(EverythingSearch MODULE src/availability.cpp src/modern_search.cpp src/plugin.cpp src/filesystem.cpp src/editor.cpp
     src/prerequisite.cpp src/actions.cpp src/result_listing.cpp src/header_order.cpp
     src/filter_catalog.cpp src/filter_dialog.cpp src/settings.cpp src/settings.rc src/search.cpp src/sdk-notice.rc src/plugin.def)
 target_compile_features(EverythingSearch PRIVATE cxx_std_17)

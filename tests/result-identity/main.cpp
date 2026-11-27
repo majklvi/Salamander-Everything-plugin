@@ -302,7 +302,7 @@ void CheckMetadata()
     CQuadWord bytes{};
     SYSTEMTIME dateTime{};
     dateTime.wHour = 23;
-    Check(listing.validData == (VALID_DATA_EXTENSION | VALID_DATA_SIZE | VALID_DATA_DATE | VALID_DATA_TIME) &&
+    Check(listing.validData == (VALID_DATA_ICONOVERLAY | VALID_DATA_EXTENSION | VALID_DATA_SIZE | VALID_DATA_DATE | VALID_DATA_TIME) &&
           listing.data->GetByteSize(&file, FALSE, &bytes) && bytes.Value == *full.size &&
           listing.data->GetByteSize(&empty, FALSE, &bytes) && bytes.Value == 0 &&
           !listing.data->GetByteSize(&listing.dirs[0], TRUE, &bytes) &&
@@ -334,7 +334,7 @@ void CheckMetadata()
     TestDirectory minimal;
     testHost.Publish(minimal);
     minimal.data->SetupView(TRUE, &view, nullptr, nullptr);
-    Check(none.metadataColumns == 0 && minimal.validData == VALID_DATA_EXTENSION && view.columns.size() == 1 &&
+    Check(none.metadataColumns == 0 && minimal.validData == (VALID_DATA_EXTENSION | VALID_DATA_ICONOVERLAY) && view.columns.size() == 1 &&
           view.columns.front().ID == COLUMN_ID_NAME, "all optional fields can be hidden");
     provider->CloseFS(fs);
     testHost.listing = nullptr;
@@ -349,11 +349,42 @@ void CheckMetadata()
 }
 }
 
+// Exercise the worker independently of Everything: both SDKs publish the same path type.
+void CheckAvailabilityTransitions()
+{
+    wchar_t folder[MAX_PATH], file[MAX_PATH];
+    Check(GetTempPathW(MAX_PATH, folder) && GetTempFileNameW(folder, L"evs", 0, file),
+          "created an availability fixture");
+    auto page = std::make_shared<AvailabilityPage>(1);
+    auto observe = [&](PathState expected) {
+        // Advance the recheck deadline without a 30-second wait in the regression.
+        if (page->entries[0].nextCheck) page->entries[0].nextCheck = 1;
+        CheckResultPath(page, 0, file);
+        const auto deadline = GetTickCount64() + 5000;
+        while (!page->changed && GetTickCount64() < deadline) Sleep(5);
+        return page->changed.exchange(false) && page->entries[0].state == expected;
+    };
+    bool present = observe(PathState::Present);
+    bool removed = DeleteFileW(file) != FALSE;
+    bool missing = removed && observe(PathState::Missing);
+    HANDLE restored = CreateFileW(file, GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    bool presentAgain = false;
+    if (restored != INVALID_HANDLE_VALUE) {
+        CloseHandle(restored);
+        presentAgain = observe(PathState::Present);
+        DeleteFileW(file);
+    }
+    StopAvailabilityChecks();
+    Check(present && missing && presentAgain && page->observed.size() == 1,
+          "background checks detect disappearance and recovery of the same file");
+}
+
 int main()
 {
     try {
         RunChecks();
         CheckMetadata();
+        CheckAvailabilityTransitions();
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "FAIL " << error.what() << '\n';

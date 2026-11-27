@@ -160,3 +160,15 @@ With Extension, Size and Date displayed as separate columns, both Sort By menus 
 The plugin disables Compare, Find and DirMenu at command dispatch and updates the host menu. The function-key bar has its own state. In the pinned host, CBottomToolBar::SetState selects Compare for Ctrl+F10, Find for Alt+F7 and DirMenu for Alt+Shift+F10, enables the buttons and copies their enable conditions from ToolBarButtons. All three entries have a null enable condition. CMainWindow::UpdateBottomToolBar then refreshes the toolbar directly. The plugin SDK provides no accessor for changing these buttons on the host-owned toolbar.
 
 Source inspection confirms the missing disabled indication. A Computer Use check reached the open results panel but did not capture the three held-modifier states. A native fix needs a host-side availability check shared with the plugin. Compare depends on both panels, while Find and DirMenu depend on the active panel.
+
+### Result icons in Open Samandarin 0.16 x64
+
+In the RealIcons test instance, the query `"\5.0-samandarin-0.2\" exact:salamand.exe` returned one file (3,420,160 bytes). The result showed the yellow and black application icon. With the result focused, Shift+F3 opened its desktop folder and focused the same executable. Its icon in Detailed view visually matched the focused search result. The release plugin and English CHM built successfully, and the result identity regression passed.
+
+### Unavailable result icons in Open Samandarin 0.16 x64
+
+The release build was tested in Detailed view with Computer Use. Everything 1.4.1.1032 returned an indexed file and folder from an EFU pointing to an absent local SMB share. Both rows received a red cross. Everything 1.5.0.1424b retained the root and seven files from a previously indexed SMB share that Windows no longer published. All eight rows appeared and then gained crosses with the editor still focused.
+
+A separate instrumented build held the UNC worker immediately after the Windows call on that same 1.5 share. The first screenshot already showed eight rows. With the worker confirmed to be waiting, appending ` tar` narrowed the panel to `targeted-tags.mkv`. The screenshots arrived within 453 ms and 465 ms of sending the respective text, including automation and capture overhead. After the 12.1-second hold was released, the single current row gained its cross and the editor retained the full query. The release binary contains no test delay.
+
+The result identity regression also checks a real temporary file through present, missing, and present again across background probes. The SDK metadata regression and Release build passed.
