@@ -2,6 +2,7 @@
 
 #include "metadata_columns.h"
 #include "properties.h"
+#include <Everything.h>
 #include <map>
 
 #include <cstdint>
@@ -15,7 +16,15 @@ inline constexpr std::uint32_t mostOpenedSort = 20; // EVERYTHING_SORT_RUN_COUNT
 inline constexpr std::uint32_t leastOpenedSort = 19; // EVERYTHING_SORT_RUN_COUNT_ASCENDING
 
 inline constexpr bool UsesRankedNames(std::uint32_t sort) {
-    return sort != 1; // Preserve the SDK sequence when the host would sort by Name.
+    switch (sort) {
+    case EVERYTHING_SORT_NAME_ASCENDING: case EVERYTHING_SORT_NAME_DESCENDING:
+    case EVERYTHING_SORT_EXTENSION_ASCENDING: case EVERYTHING_SORT_EXTENSION_DESCENDING:
+    case EVERYTHING_SORT_SIZE_ASCENDING: case EVERYTHING_SORT_SIZE_DESCENDING:
+    case EVERYTHING_SORT_DATE_MODIFIED_ASCENDING: case EVERYTHING_SORT_DATE_MODIFIED_DESCENDING:
+        return false;
+    default:
+        return true;
+    }
 }
 
 inline constexpr unsigned defaultResultLimit = 200;
@@ -32,6 +41,12 @@ struct SearchKey {
     Source source = Source::Automatic;
     std::vector<Property> properties;
     std::wstring sortProperty;
+
+    unsigned RequestedColumns() const {
+        if (sort == EVERYTHING_SORT_SIZE_ASCENDING || sort == EVERYTHING_SORT_SIZE_DESCENDING) return metadataColumns | ColumnSize;
+        if (sort == EVERYTHING_SORT_DATE_MODIFIED_ASCENDING || sort == EVERYTHING_SORT_DATE_MODIFIED_DESCENDING) return metadataColumns | ColumnModified;
+        return metadataColumns;
+    }
 
     bool operator==(const SearchKey& rhs) const {
         return instance == rhs.instance && generation == rhs.generation &&

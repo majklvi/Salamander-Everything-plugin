@@ -244,7 +244,7 @@ void CheckMetadata()
     TestView view;
     initial.data->SetupView(TRUE, &view, nullptr, nullptr);
     Check(first.metadataColumns == defaultMetadataColumns && view.columns.size() == 2 &&
-          std::string_view(view.columns[1].Name) == "Date modified", "compact default shows one date");
+          view.columns[1].ID == COLUMN_ID_DATE, "compact default shows one date");
 
     SetVisibleMetadataColumns(allMetadataColumns);
     const SearchKey all = submitted;
@@ -287,25 +287,22 @@ void CheckMetadata()
     const auto& empty = listing.files[1];
     Check(view.columns.size() == 12 && view.columns.back().SupportSorting &&
           view.Cell(11, file) == R"(C:\meta)", "Parent folder is available on request");
-    Check(view.Cell(1, file) == "4294967297" && view.Cell(5, file) == "Read-only, Archive, 0x80000000" &&
-          view.Cell(6, file) == "pdf" && view.Cell(7, file) == R"(C:\lists\sample.efu)" &&
-          view.Cell(8, file) == "3", "optional cells preserve metadata");
-    testHost.sizeMode = 1;
-    Check(view.Cell(1, file) == "host KB", "KB uses host whole-kilobyte formatter");
-    testHost.sizeMode = 2;
-    Check(view.Cell(1, file) == "host mixed", "mixed units use host short formatter");
-    testHost.sizeMode = 0;
+    Check(view.columns[1].ID == COLUMN_ID_EXTENSION && view.columns[2].ID == COLUMN_ID_SIZE &&
+          view.columns[3].ID == COLUMN_ID_DATE && file.Size.Value == *full.size &&
+          file.LastWrite.dwHighDateTime == ft.dwHighDateTime && file.LastWrite.dwLowDateTime == ft.dwLowDateTime &&
+          !strcmp(file.Ext, "pdf"), "native sort columns receive full precision values");
+    Check(view.Cell(6, file) == "Read-only, Archive, 0x80000000" &&
+          view.Cell(7, file) == R"(C:\lists\sample.efu)" && view.Cell(8, file) == "3",
+          "optional cells preserve metadata");
     char expected[128]{};
     GetDateFormatA(LOCALE_USER_DEFAULT, DATE_SHORTDATE, &local, nullptr, expected, sizeof(expected));
-    Check(view.Cell(2, file) == expected && view.Cell(3, file) == expected && view.Cell(4, file) == expected,
-          "all three file dates can appear together in regional format");
-    Check(view.Cell(1, empty) == "0" && view.Cell(5, empty) == "None" &&
-          view.Cell(1, listing.dirs[0]).empty(), "zero and missing values stay distinct");
+    Check(view.Cell(4, file) == expected && view.Cell(5, file) == expected,
+          "additional file dates can appear together in regional format");
 
     CQuadWord bytes{};
     SYSTEMTIME dateTime{};
     dateTime.wHour = 23;
-    Check(listing.validData == (VALID_DATA_EXTENSION | VALID_DATA_PL_SIZE | VALID_DATA_PL_DATE | VALID_DATA_PL_TIME) &&
+    Check(listing.validData == (VALID_DATA_EXTENSION | VALID_DATA_SIZE | VALID_DATA_DATE | VALID_DATA_TIME) &&
           listing.data->GetByteSize(&file, FALSE, &bytes) && bytes.Value == *full.size &&
           listing.data->GetByteSize(&empty, FALSE, &bytes) && bytes.Value == 0 &&
           !listing.data->GetByteSize(&listing.dirs[0], TRUE, &bytes) &&

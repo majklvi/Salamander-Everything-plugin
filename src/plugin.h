@@ -15,11 +15,13 @@
 
 extern CSalamanderGeneralAbstract* gGeneral;
 extern HINSTANCE gInstance;
+extern CSalamanderGUIAbstract* gGUI;
 
 constexpr int openContainingFolder = 2;
 #include "../help/topics.h"
 
 bool UseHostDarkTheme();
+void CheckSearchPrerequisite(HWND parent);
 void ShowSearchSettings(HWND parent);
 void ShowEditorForActivePanel();
 void ScheduleEditorSync();

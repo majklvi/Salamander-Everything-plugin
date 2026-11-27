@@ -1,0 +1,24 @@
+Everything Search 0.5.0 for Open Samandarin 0.16 x64
+
+Install
+1. Install and start Everything 1.4 or 1.5 in the same Windows session.
+   Downloads: https://www.voidtools.com/downloads/
+2. Unzip the entire archive into the folder containing salamand.exe.
+3. In Plugins > Plugins Manager, choose Add and select
+   plugins\EverythingSearch\EverythingSearch.spl. If already listed, choose Test to load it.
+4. In Detailed view with column headings visible, press Ctrl+Shift+E and type
+   exact:salamand.exe. Press F1 in the search field for the English manual.
+   If using another help language, copy help\english\EverythingSearch.chm
+   beside the salamand.chm for that language.
+
+Update
+Leave all Everything search tabs, close the plugin help viewer, and unload
+Everything Search in Plugins Manager. Extract the new ZIP into the same
+folder, replacing its files. Use Test on the existing entry to reload it.
+If Windows reports the CHM is in use after closing Help, exit that copy of
+Samandarin, extract the ZIP again, and restart it.
+
+The search field uses the panel layout of Open Samandarin 0.16 x64. Other
+host versions and views may not display the field. Everything Search uses
+IPC to query your Everything index. If a stopped portable copy is outside
+the standard installation folders, start it manually, then reopen search.

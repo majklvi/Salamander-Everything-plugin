@@ -1,6 +1,6 @@
 # Build and run Everything Search
 
-Everything Search 0.4.2 is a native x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
+Everything Search 0.5.0 is a native x64 filesystem plugin for Open Samandarin 0.16. It queries a running Everything 1.4 or 1.5 instance selected in Settings. Both SDK clients and their license notices are built into the plugin. Install and run an IPC-capable Everything edition in the same Windows session. [Everything SDK](https://www.voidtools.com/support/everything/sdk/) · [File action and sort tests](milestone-4.md)
 
 ## Build
 
@@ -139,3 +139,24 @@ In Open Samandarin 0.16 x64, pressing F1 with the caret in the search field open
 Open Samandarin 0.16 dispatches Ctrl+F2 to the active panel. Its disk-panel branch creates the native dialog. Its plugin-filesystem branch checks `FS_SERVICE_CHANGEATTRS` and calls the plugin’s `ChangeAttributes` callback. The SDK expects the plugin to supply its own dialog and does not expose the disk dialog for a list of absolute paths. Everything Search leaves this service disabled. Use Shift+F3 followed by Ctrl+F2 to change the focused item’s attributes in the disk panel.
 
 Verified in Open Samandarin 0.16 x64 with the current Release plugin. With the sole result of `exact:Everything.lng` focused, Ctrl+F2 opened no dialog and **Files > Change Attributes** was disabled. Shift+F3 opened the parent disk folder and focused `Everything.lng` without marking it. Ctrl+F2 then opened the native **Change Attributes** dialog with Archive checked and the file date and time controls visible. The dialog was left open without applying changes.
+
+## Native panel sort commands
+
+Verified in Open Samandarin 0.16 x64 with Everything 1.5.0.1424b. Both panels searched the same eight files with a four-result limit. Size, Date and the separate Extension column were hidden. Each row below gives the file stems in their observed display order. All eight files had distinct extensions, sizes and modification dates.
+
+| Sort By command | Active-panel shortcut | Ascending | Descending |
+| --- | --- | --- | --- |
+| Name | Ctrl+F3 | a b c d | h g f e |
+| Extension | Ctrl+F4 | h g f e | a b c d |
+| Time (date modified) | Ctrl+F5 | e c g a | b f d h |
+| Size | Ctrl+F6 | b d f h | a c e g |
+
+Selected each command twice in **Left > Sort By** and **Right > Sort By**, then tested both directions with the corresponding shortcut in each active panel. All 32 checks returned the expected four files in order. The Left menu also targeted the left search while the right panel had focus. For every key the opposite direction returned the other four matches, confirming that Everything applied the sort to the full query before the limit.
+
+With Extension, Size and Date displayed as separate columns, both Sort By menus listed Name, Extension, Time and Size once each. Clicking the Date header changed the page to the four oldest files in modification order.
+
+## Function-key bar and directory commands (Samandarin 0.16)
+
+The plugin disables Compare, Find and DirMenu at command dispatch and updates the host menu. The function-key bar has its own state. In the pinned host, CBottomToolBar::SetState selects Compare for Ctrl+F10, Find for Alt+F7 and DirMenu for Alt+Shift+F10, enables the buttons and copies their enable conditions from ToolBarButtons. All three entries have a null enable condition. CMainWindow::UpdateBottomToolBar then refreshes the toolbar directly. The plugin SDK provides no accessor for changing these buttons on the host-owned toolbar.
+
+Source inspection confirms the missing disabled indication. A Computer Use check reached the open results panel but did not capture the three held-modifier states. A native fix needs a host-side availability check shared with the plugin. Compare depends on both panels, while Find and DirMenu depend on the active panel.

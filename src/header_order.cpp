@@ -4,6 +4,8 @@
 #include "header_order.h"
 
 #include <Everything.h>
+#include "spl_gui.h"
+#include <windowsx.h>
 #include <algorithm>
 #include <vector>
 
@@ -11,12 +13,12 @@ namespace {
 constexpr UINT_PTR observerId = 1;
 using Rows = std::vector<const ResultRow*>;
 
-Rows VisibleFileOrder()
+Rows VisibleFileOrder(int panel = PANEL_SOURCE)
 {
     Rows rows;
     int index = 0;
     BOOL directory;
-    while (const CFileData* file = gGeneral->GetPanelItem(PANEL_SOURCE, &index, &directory)) {
+    while (const CFileData* file = gGeneral->GetPanelItem(panel, &index, &directory)) {
         // 0.16 keeps folders in a separate group and may always sort them by
         // name. Files reveal the chosen direction independently of that option.
         if (!directory && file->PluginData)
@@ -25,66 +27,139 @@ Rows VisibleFileOrder()
     return rows;
 }
 
-// Unlike a standard WC_HEADER, 0.16's native header reports neither the
-// selected column nor its direction. Accept only an unambiguous ordering of
-// the same file rows after the native header has finished handling the click.
-DWORD ObservedSort(const Rows& rows)
+// Menu and accelerator IDs from the pinned 0.16 resource.rh2.
+constexpr UINT leftName = 688, rightName = 694, activeName = 700;
+constexpr DWORD nativeOrders[] = {EVERYTHING_SORT_NAME_ASCENDING, EVERYTHING_SORT_EXTENSION_ASCENDING,
+                                  EVERYTHING_SORT_DATE_MODIFIED_ASCENDING, EVERYTHING_SORT_SIZE_ASCENDING};
+bool settingHostOrder = false;
+struct AppliedOrder {
+    CPluginFSInterfaceAbstract* fs = nullptr;
+    DWORD sort = 0;
+};
+AppliedOrder applied[2];
+
+DWORD ClickOrder(CPluginFSInterfaceAbstract* fs, DWORD ascending)
 {
-    bool nameAsc = true, nameDesc = true, parentAsc = true, parentDesc = true;
-    for (size_t i = 1; i < rows.size(); ++i) {
-        const auto& a = *rows[i - 1];
-        const auto& b = *rows[i];
-        int name = gGeneral->RegSetStrICmp(a.displayName.c_str(), b.displayName.c_str());
-        if (!name)
-            name = gGeneral->RegSetStrCmp(a.displayName.c_str(), b.displayName.c_str());
-        const int parent = gGeneral->RegSetStrICmp(a.displayParent.c_str(), b.displayParent.c_str());
-        nameAsc &= name <= 0;
-        nameDesc &= name >= 0;
-        // The host breaks ties on custom column values by ascending Name in
-        // both directions (fileswn3.cpp, LessPluginCustomNameExt).
-        parentAsc &= parent < 0 || (!parent && name <= 0);
-        parentDesc &= parent > 0 || (!parent && name <= 0);
-    }
-    if (int(nameAsc) + int(nameDesc) + int(parentAsc) + int(parentDesc) != 1)
-        return 0;
-    if (nameAsc) return EVERYTHING_SORT_NAME_ASCENDING;
-    if (nameDesc) return EVERYTHING_SORT_NAME_DESCENDING;
-    if (parentAsc) return EVERYTHING_SORT_PATH_ASCENDING;
-    return EVERYTHING_SORT_PATH_DESCENDING;
+    const auto current = GetResultSort(fs);
+    return ascending + (current == ascending || (ascending == leastOpenedSort && current != ascending + 1));
 }
 
+// Ask the pinned host to populate its own Sort By submenu without opening it.
+// Its checked command identifies the actual header, even for a one-row page.
+DWORD CheckedNativeSort(int panel)
+{
+    auto* menu = gGUI->CreateMenuPopup();
+    if (!menu) return 0;
+    const bool left = panel == PANEL_LEFT;
+    SendMessageW(gGeneral->GetMainWindowHWND(), WM_USER_INITMENUPOPUP,
+                 reinterpret_cast<WPARAM>(menu), MAKELPARAM(0, left ? 5505 : 5544));
+    MENU_ITEM_INFO item{};
+    item.Mask = MENU_MASK_STATE;
+    DWORD result = 0;
+    for (UINT i = 0; i < std::size(nativeOrders); ++i) {
+        if (menu->GetItemInfo((left ? leftName : rightName) + i, FALSE, &item) &&
+            (item.State & MENU_STATE_CHECKED)) {
+            result = nativeOrders[i];
+            break;
+        }
+    }
+    gGUI->DestroyMenuPopup(menu);
+    return result;
+}
+
+HWND pressedHeader = nullptr;
+POINT pressPoint{};
 LRESULT CALLBACK HeaderProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR data)
 {
     auto* fs = reinterpret_cast<CPluginFSInterfaceAbstract*>(data);
-    if (msg == WM_NCDESTROY)
+    if (msg == WM_LBUTTONDOWN || msg == WM_LBUTTONDBLCLK) {
+        // A fixed-width divider takes capture too, but resizing is not a sort.
+        const HCURSOR divider = LoadCursorW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(940));
+        pressedHeader = GetCursor() == divider ? nullptr : hwnd;
+        pressPoint = {GET_X_LPARAM(lp), GET_Y_LPARAM(lp)};
+    }
+    if (msg == WM_NCDESTROY) {
+        if (pressedHeader == hwnd) pressedHeader = nullptr;
         RemoveWindowSubclass(hwnd, HeaderProc, observerId);
-    if (msg != WM_LBUTTONUP || GetCapture() != hwnd ||
+    }
+    if (msg != WM_LBUTTONUP || pressedHeader != hwnd || GetCapture() != hwnd ||
+        abs(GET_X_LPARAM(lp) - pressPoint.x) > GetSystemMetrics(SM_CXDRAG) ||
+        abs(GET_Y_LPARAM(lp) - pressPoint.y) > GetSystemMetrics(SM_CYDRAG) ||
         gGeneral->GetPanelPluginFS(PANEL_SOURCE) != fs || !IsListingCurrent(fs))
         return DefSubclassProc(hwnd, msg, wp, lp);
 
     auto* listing = gGeneral->GetPanelPluginData(PANEL_SOURCE);
-    const Rows before = VisibleFileOrder();
+    pressedHeader = nullptr;
     RememberResultSelection(fs);
     BeginHeaderSortObservation();
     const LRESULT result = DefSubclassProc(hwnd, msg, wp, lp);
     const auto ascending = EndHeaderSortObservation();
     if (IsResultsFS(fs) && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == fs &&
         gGeneral->GetPanelPluginData(PANEL_SOURCE) == listing && IsListingCurrent(fs)) {
-        const Rows after = VisibleFileOrder();
-        if (ascending) {
-            // SDK v2 pairs each ascending ID with the following descending ID.
-            const auto descending = ascending + 1;
-            const auto current = GetResultSort(fs);
-            const bool reverse = current == ascending || (ascending == leastOpenedSort && current != descending);
-            SetResultSort(fs, reverse ? descending : ascending);
-        } else if (after != before && after.size() == before.size()) {
-            if (DWORD sort = ObservedSort(after))
-                SetResultSort(fs, sort);
-        }
+        const DWORD native = CheckedNativeSort(gGeneral->GetSourcePanel());
+        if (native || ascending) SetResultSort(fs, ClickOrder(fs, native ? native : ascending));
     }
     ScheduleEditorSync();
     return result;
 }
+}
+
+bool HandleNativeSortCommand(UINT command)
+{
+    if (settingHostOrder) return false;
+    int panel;
+    UINT first;
+    if (command >= leftName && command < leftName + 4) { panel = PANEL_LEFT; first = leftName; }
+    else if (command >= rightName && command < rightName + 4) { panel = PANEL_RIGHT; first = rightName; }
+    else if (command >= activeName && command < activeName + 4) { panel = PANEL_SOURCE; first = activeName; }
+    else return false;
+    auto* fs = gGeneral->GetPanelPluginFS(panel);
+    if (!IsResultsFS(fs)) return false;
+    SetResultSort(fs, ClickOrder(fs, nativeOrders[command - first]));
+    return true;
+}
+
+void ForgetNativeOrder(CPluginFSInterfaceAbstract* fs)
+{
+    for (auto& order : applied)
+        if (order.fs == fs) order = {};
+}
+
+void ApplyNativeOrder(HWND frame, int panel)
+{
+    auto* fs = gGeneral->GetPanelPluginFS(panel);
+    auto& previous = applied[panel == PANEL_RIGHT];
+    if (!IsResultsFS(fs) || UsesRankedNames(GetResultSort(fs))) {
+        previous = {};
+        return;
+    }
+    if (!IsListingCurrent(fs)) return;
+    auto* listing = gGeneral->GetPanelPluginData(panel);
+    const auto sort = GetResultSort(fs);
+    if (!TakeNativeOrderUpdate(listing, sort)) return;
+    const auto ascending = (sort & 1) ? sort : sort - 1;
+    const auto i = std::find(std::begin(nativeOrders), std::end(nativeOrders), ascending);
+    if (i == std::end(nativeOrders)) return;
+    const UINT base = panel == PANEL_LEFT ? leftName : rightName;
+    const UINT cmd = base + static_cast<UINT>(i - nativeOrders);
+    const DWORD checked = CheckedNativeSort(panel);
+    if (previous.fs == fs && previous.sort == sort && checked == ascending &&
+        ascending != EVERYTHING_SORT_DATE_MODIFIED_ASCENDING) return;
+    previous = {fs, sort};
+    // The host only exposes toggle commands. Select a different key first so
+    // the following request starts in a known direction on either panel.
+    settingHostOrder = true;
+    if (!checked || checked == ascending)
+        SendMessageW(frame, WM_COMMAND, cmd == base ? base + 1 : base, 0);
+    SendMessageW(frame, WM_COMMAND, cmd, 0);
+    bool reverse = sort != ascending;
+    if (ascending == EVERYTHING_SORT_DATE_MODIFIED_ASCENDING) {
+        const auto rows = VisibleFileOrder(panel);
+        if (rows.size() > 1 && rows.front()->hit.modified > rows.back()->hit.modified)
+            reverse = !reverse; // Samandarin's "Sort newer on top" preference.
+    }
+    if (reverse) SendMessageW(frame, WM_COMMAND, cmd, 0);
+    settingHostOrder = false;
 }
 
 void ObserveResultHeader(HWND header, CPluginFSInterfaceAbstract* fs)
@@ -117,7 +192,9 @@ void ApplyRankedOrder(HWND frame, CPluginFSInterfaceAbstract* fs)
             SendMessageW(frame, WM_COMMAND, command, 0);
             SetRankingFilteredRows(false);
         } else {
+            settingHostOrder = true;
             SendMessageW(frame, WM_COMMAND, 700, 0); // CM_ACTIVENAME
+            settingHostOrder = false;
         }
     }
 }

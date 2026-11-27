@@ -42,3 +42,5 @@ Version 0.4.1 adds ten optional Everything metadata columns. Size and modificati
 Produce the x64 release artifact, include applicable SDK notices and document installation, supported host and Everything versions, and known layout limitations. Test a clean installation, unload and upgrade on the configurations being claimed. Measure time from the last edit to the first usable rows for cold and warm queries, together with the page size, index size and debounce used. Use these measurements to tune the starting values. [Backend compatibility](everything-integration.md#backend-choice) · [End-to-end scenarios](everything-integration.md#what-a-prototype-should-verify)
 
 **Release when** the packaged plugin passes the editor, query, ordering and file-identity checks on its declared configurations, and a user can install it and reproduce a search from the published instructions.
+
+Version 0.5.0 packages the x64 plugin and English HTML Help. [Release checks and response measurements](milestone-5.md)

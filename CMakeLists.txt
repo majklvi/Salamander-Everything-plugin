@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.21)
-project(EverythingSearch VERSION 0.4.2 LANGUAGES C CXX RC)
+project(EverythingSearch VERSION 0.5.0 LANGUAGES C CXX RC)
 
 if(NOT WIN32 OR NOT MSVC OR NOT MSVC_CXX_ARCHITECTURE_ID STREQUAL "x64")
     message(FATAL_ERROR "Configure with an x64 MSVC-compatible Windows toolchain.")
@@ -34,7 +34,7 @@ set_target_properties(EverythingSdkV3 PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThre
 target_include_directories(EverythingSdkV3 SYSTEM PUBLIC third_party/everything-sdk-v3/include)
 
 add_library(EverythingSearch MODULE src/modern_search.cpp src/plugin.cpp src/filesystem.cpp src/editor.cpp
-    src/actions.cpp src/result_listing.cpp src/header_order.cpp
+    src/prerequisite.cpp src/actions.cpp src/result_listing.cpp src/header_order.cpp
     src/filter_catalog.cpp src/filter_dialog.cpp src/settings.cpp src/settings.rc src/search.cpp src/sdk-notice.rc src/plugin.def)
 target_compile_features(EverythingSearch PRIVATE cxx_std_17)
 target_compile_definitions(EverythingSearch PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN
@@ -42,7 +42,7 @@ target_compile_definitions(EverythingSearch PRIVATE UNICODE _UNICODE NOMINMAX WI
 target_compile_options(EverythingSearch PRIVATE /W4 /utf-8)
 target_include_directories(EverythingSearch SYSTEM PRIVATE "${SAMANDARIN_SDK_DIR}"
     third_party/everything-sdk-v2/include third_party/everything-sdk-v2/ipc)
-target_link_libraries(EverythingSearch PRIVATE EverythingSdkV2 EverythingSdkV3 comctl32 user32 gdi32 shell32 ole32 uuid dwmapi uxtheme)
+target_link_libraries(EverythingSearch PRIVATE EverythingSdkV2 EverythingSdkV3 comctl32 user32 gdi32 shell32 ole32 uuid dwmapi uxtheme version advapi32)
 set_target_properties(EverythingSearch PROPERTIES
     PREFIX "" SUFFIX ".spl"
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
@@ -66,4 +66,18 @@ if(HHC_EXECUTABLE OR CHMCMD_EXECUTABLE)
         VERBATIM)
     add_custom_target(EverythingSearchHelp DEPENDS "${help_output}")
     add_dependencies(EverythingSearch EverythingSearchHelp)
+endif()
+
+if(TARGET EverythingSearchHelp)
+    install(TARGETS EverythingSearch LIBRARY DESTINATION plugins/EverythingSearch)
+    install(FILES "${help_output}" DESTINATION help/english)
+    install(FILES docs/INSTALL.txt DESTINATION plugins/EverythingSearch)
+    foreach(sdk IN ITEMS v2 v3)
+        install(FILES third_party/everything-sdk-${sdk}/LICENSE.txt DESTINATION plugins/EverythingSearch
+                RENAME Everything-SDK-${sdk}-LICENSE.txt)
+    endforeach()
+    set(CPACK_GENERATOR ZIP)
+    set(CPACK_PACKAGE_FILE_NAME "EverythingSearch-${PROJECT_VERSION}-x64")
+    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+    include(CPack)
 endif()

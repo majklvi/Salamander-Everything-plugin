@@ -8,6 +8,7 @@
 
 int SalamanderVersion = 0;
 HINSTANCE gInstance = nullptr;
+CSalamanderGUIAbstract* gGUI = nullptr;
 CSalamanderGeneralAbstract* gGeneral = nullptr;
 
 bool UseHostDarkTheme()
@@ -27,7 +28,6 @@ constexpr int settingsCommand = 5;
 constexpr int helpCommand = 6;
 char fsName[MAX_PATH]{};
 constexpr char columnsSetting[] = "ResultColumnsV2";
-CSalamanderGUIAbstract* gui = nullptr;
 
 HICON LoadSourceIcon()
 {
@@ -51,14 +51,14 @@ void RegisterMenuIcon(CSalamanderConnectAbstract* host)
 {
     HICON icon = LoadSourceIcon();
     if (!icon) return;
-    auto* list = gui->CreateIconList();
+    auto* list = gGUI->CreateIconList();
     if (list) {
         if (list->Create(16, 16, 1) && list->ReplaceIcon(0, icon)) {
             host->SetIconListForGUI(list);
             host->SetPluginIcon(0);
             host->SetPluginMenuAndToolbarIcon(0);
         } else {
-            gui->DestroyIconList(list);
+            gGUI->DestroyIconList(list);
         }
     }
     DestroyIcon(icon);
@@ -224,7 +224,7 @@ extern "C" CPluginInterfaceAbstract* WINAPI SalamanderPluginEntry(CSalamanderPlu
         return nullptr;
     }
     gGeneral = host->GetSalamanderGeneral();
-    gui = host->GetSalamanderGUI();
+    gGUI = host->GetSalamanderGUI();
     gGeneral->SetHelpFileName("EverythingSearch.chm");
     gGeneral->GetPluginFSName(fsName, 0);
     RefreshFilterCatalog();

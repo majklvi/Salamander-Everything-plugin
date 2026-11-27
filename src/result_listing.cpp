@@ -69,18 +69,6 @@ std::string DisplayDate(const std::optional<std::uint64_t>& ticks)
     return text;
 }
 
-std::string DisplaySize(const SearchHit& hit)
-{
-    if (!hit.size) return {};
-    int mode = 0;
-    gGeneral->GetConfigParameter(SALCFG_SIZEFORMAT, &mode, sizeof(mode), nullptr);
-    CQuadWord bytes{};
-    bytes.SetUI64(*hit.size);
-    char text[128];
-    return mode == 0 ? gGeneral->NumberToStr(text, bytes)
-                     : gGeneral->PrintDiskSize(text, bytes, mode == 1 ? 3 : 0);
-}
-
 std::string DisplayAttributes(std::uint32_t bits)
 {
     if (!bits) return "None";
@@ -116,12 +104,12 @@ std::string DisplayAttributes(std::uint32_t bits)
 std::string FormatMetadata(const SearchHit& hit, MetadataColumn flag)
 {
     switch (flag) {
-    case ColumnSize:            return DisplaySize(hit);
-    case ColumnModified:        return DisplayDate(hit.modified);
+    case ColumnSize:
+    case ColumnModified:
+    case ColumnExtension:       return {}; // Standard panel columns.
     case ColumnCreated:         return DisplayDate(hit.created);
     case ColumnAccessed:        return DisplayDate(hit.accessed);
     case ColumnAttributes:      return hit.attributes ? DisplayAttributes(*hit.attributes) : "";
-    case ColumnExtension:       return hit.extension ? DisplayText(*hit.extension, TRANSFER_BUFFER_MAX - 1) : "";
     case ColumnFileList:        return hit.fileList ? DisplayText(*hit.fileList, TRANSFER_BUFFER_MAX - 1) : "";
     case ColumnRunCount:        return hit.runCount ? std::to_string(*hit.runCount) : "";
     case ColumnDateRun:         return DisplayDate(hit.dateRun);
@@ -215,6 +203,7 @@ public:
     std::string filterLabel;
     bool filteredRanks = false;
     bool filtered = false;
+    bool nativeOrderApplied = false;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
         if (view->GetViewMode() != VIEW_MODE_DETAILED) return;
@@ -223,16 +212,24 @@ public:
         for (int i = view->GetColumnsCount() - 1; i > 0; --i)
             view->DeleteColumn(i);
         const unsigned visible = VisibleMetadataColumns();
+        if (visible & ColumnExtension)
+            view->InsertStandardColumn(1, COLUMN_ID_EXTENSION);
         for (DWORD i = 0; i < std::size(metadataColumns); ++i) {
             const auto& field = metadataColumns[i];
-            if (visible & field.flag)
-                InsertResultColumn(view, left, field.flag == ColumnParent ? 0 : i + 1, field.title, field.flag == ColumnSize || field.flag == ColumnRunCount);
+            if (!(visible & field.flag) || field.flag == ColumnExtension) continue;
+            if (field.flag == ColumnSize || field.flag == ColumnModified)
+                view->InsertStandardColumn(view->GetColumnsCount(), field.flag == ColumnSize ? COLUMN_ID_SIZE : COLUMN_ID_DATE);
+            else
+                InsertResultColumn(view, left, field.flag == ColumnParent ? 0 : i + 1, field.title, field.flag == ColumnRunCount);
         }
         if (page) for (const auto& property : page->properties) {
             const auto title = DisplayText(property.title, sizeof(CColumn::Name) - 1);
             InsertResultColumn(view, left, property.order, title.c_str(), false);
         }
-        if (filteredRanks && view->GetColumnsCount() == 1)
+        bool hasCustom = false;
+        for (int i = 1; i < view->GetColumnsCount(); ++i)
+            hasCustom |= view->GetColumn(i)->ID == COLUMN_ID_CUSTOM;
+        if (filteredRanks && !hasCustom)
             InsertResultColumn(view, left, rankColumn, "Rank", true);
     }
     void WINAPI ColumnFixedWidthShouldChange(BOOL left, const CColumn* column, int fixed) override {
@@ -324,6 +321,14 @@ public:
 };
 }
 
+bool TakeNativeOrderUpdate(CPluginDataInterfaceAbstract* data, unsigned sort)
+{
+    auto* listing = static_cast<ListingData*>(data);
+    if (!listing || !listing->page || listing->page->sort != sort || listing->nativeOrderApplied) return false;
+    listing->nativeOrderApplied = true;
+    return true;
+}
+
 bool HasFilteredRanks(CPluginDataInterfaceAbstract* data)
 {
     return data && static_cast<ListingData*>(data)->filteredRanks;
@@ -405,8 +410,8 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
     DWORD valid = VALID_DATA_EXTENSION;
     if (page) {
         for (const auto& row : page->rows) {
-            if (row.hit.size) valid |= VALID_DATA_PL_SIZE;
-            if (row.hit.modified) valid |= VALID_DATA_PL_DATE | VALID_DATA_PL_TIME;
+            if (row.hit.size) valid |= VALID_DATA_SIZE;
+            if (row.hit.modified) valid |= VALID_DATA_DATE | VALID_DATA_TIME;
         }
     }
     directory->SetValidData(valid);
@@ -419,6 +424,10 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
                                                      : item.displayName;
             row.Name = gGeneral->DupStr(name.c_str());
             if (!row.Name) { directory->Clear(listing.get()); return false; }
+            row.Size.SetUI64(item.hit.size.value_or(0));
+            row.SizeValid = item.hit.size.has_value();
+            const auto ticks = item.hit.modified.value_or(0);
+            row.LastWrite = {static_cast<DWORD>(ticks), static_cast<DWORD>(ticks >> 32)};
             row.NameLen = static_cast<unsigned>(name.size());
             char* dot = std::strrchr(row.Name, '.');
             row.Ext = dot ? dot + 1 : row.Name + row.NameLen;

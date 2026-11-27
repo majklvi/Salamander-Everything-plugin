@@ -145,7 +145,7 @@ SearchReply QueryModern(const Sources& sources, const SearchKey& key, const std:
     if (!key.sortProperty.empty()) sort = Everything3_FindPropertyW(client.get(), key.sortProperty.c_str());
     for (const auto& f : fields) {
         if (key.sort == f.ascending || key.sort == f.ascending + 1) sort = f.property;
-        if ((!f.flag || (key.metadataColumns & f.flag)) && !Everything3_AddSearchPropertyRequest(s, f.property)) return reply;
+        if ((!f.flag || (key.RequestedColumns() & f.flag)) && !Everything3_AddSearchPropertyRequest(s, f.property)) return reply;
     }
     const bool ascending = key.sort >= firstPropertyOrder ? key.sort % 2 == 0 : key.sort % 2 == 1;
     if (sort == EVERYTHING3_INVALID_PROPERTY_ID || !Everything3_SetSearchSort(s, sort, ascending)) {
@@ -186,7 +186,7 @@ SearchReply QueryModern(const Sources& sources, const SearchKey& key, const std:
         h.path = ReadText([&](wchar_t* p, size_t n){ return Everything3_GetResultFullPathNameW(r,i,p,n); });
         if (h.name.empty() || h.path.empty()) return reply;
         h.directory = Everything3_IsFolderResult(r,i) != FALSE;
-        const auto mask = key.metadataColumns;
+        const auto mask = key.RequestedColumns();
         if (mask & ColumnSize) h.size = Value(Everything3_GetResultSize(r,i));
         if (mask & ColumnModified) h.modified = Value(Everything3_GetResultDateModified(r,i));
         if (mask & ColumnCreated) h.created = Value(Everything3_GetResultDateCreated(r,i));

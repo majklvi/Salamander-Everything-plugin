@@ -101,7 +101,12 @@ public:
         columns.insert(columns.begin() + i, *column);
         return TRUE;
     }
-    BOOL WINAPI InsertStandardColumn(int, DWORD) override { return FALSE; }
+    BOOL WINAPI InsertStandardColumn(int index, DWORD id) override {
+        CColumn column{};
+        column.ID = id;
+        columns.insert(columns.begin() + index, column);
+        return TRUE;
+    }
     BOOL WINAPI SetColumnName(int, const char*, const char*) override { return FALSE; }
     BOOL WINAPI DeleteColumn(int i) override {
         columns.erase(columns.begin() + i);

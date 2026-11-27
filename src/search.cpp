@@ -1,10 +1,10 @@
+#define EVERYTHINGUSERAPI
 #include "search.h"
 #include "modern_search.h"
 extern "C" void Everything_SetTargetWindow(HWND);
 
 #include <windows.h>
 #include <process.h>
-#define EVERYTHINGUSERAPI
 #include <Everything.h>
 #include <everything_ipc.h>
 
@@ -242,7 +242,7 @@ struct Receiver {
         }
         SearchReply reply{*active, SearchState::Ready, {}, Everything_GetTotResults()};
         const DWORD count = Everything_GetNumResults();
-        const DWORD flags = Everything_GetResultListRequestFlags() & RequestedFields(active->metadataColumns);
+        const DWORD flags = Everything_GetResultListRequestFlags() & RequestedFields(active->RequestedColumns());
         reply.hits.reserve(count);
         for (DWORD i = 0; i < count; ++i) {
             const wchar_t* name = Everything_GetResultFileNameW(i);
@@ -282,7 +282,7 @@ struct Receiver {
         Everything_SetSort(request.key.sort);
         Everything_SetOffset(request.key.offset);
         Everything_SetMax(request.key.limit ? request.key.limit : MAXDWORD);
-        Everything_SetRequestFlags(RequestedFields(request.key.metadataColumns));
+        Everything_SetRequestFlags(RequestedFields(request.key.RequestedColumns()));
         expires = GetTickCount64() + replyTimeout;
         // Windows may dispatch a synchronous reply inside the submission.
         if (!Everything_QueryW(FALSE) && active)

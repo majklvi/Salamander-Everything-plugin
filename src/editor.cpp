@@ -4,6 +4,7 @@
 #include "actions.h"
 #include "search.h"
 #include "filter_dialog.h"
+#include "spl_gui.h"
 
 #include <uxtheme.h>
 #include <algorithm>
@@ -37,6 +38,7 @@ struct Binding {
     HWND popup = nullptr;
     HWND edit = nullptr;
     HFONT font = nullptr;
+    int fontCellHeight = 0;
     bool dark = false;
     bool composing = false;
     bool enterWhenListed = false;
@@ -158,7 +160,7 @@ HWND FindHeader(HWND list)
     return nullptr;
 }
 
-int DetailedRowHeight(int header, UINT dpi)
+int DetailedRowHeight(int fontHeight, UINT dpi)
 {
     // 0.16 scales the header padding, keeps four device pixels of row
     // padding and rounds the 16-DIP panel icon up to an available size.
@@ -170,7 +172,6 @@ int DetailedRowHeight(int header, UINT dpi)
             break;
         }
     }
-    const int fontHeight = header - MulDiv(4, dpi, 96);
     return std::max(fontHeight + 4, MulDiv(16, iconDpi, 96) + 1);
 }
 
@@ -272,9 +273,79 @@ bool PointerGesturePending()
            (GetKeyState(VK_RBUTTON) & 0x8000) || HIWORD(GetQueueStatus(QS_MOUSEBUTTON));
 }
 
+// Directory commands from Open Samandarin 0.16 resource.rh2.
+constexpr UINT compareDirsCommand = 737, findFileCommand = 741, dirMenuCommand = 924;
+
+bool DirectoryCommandUnavailable(UINT command)
+{
+    if (command == compareDirsCommand)
+        return IsResultsFS(gGeneral->GetPanelPluginFS(PANEL_LEFT)) ||
+               IsResultsFS(gGeneral->GetPanelPluginFS(PANEL_RIGHT));
+    return (command == findFileCommand || command == dirMenuCommand) &&
+           IsResultsFS(gGeneral->GetPanelPluginFS(PANEL_SOURCE));
+}
+
+// Host menus persist across panel switches. Restore each item's original state
+// and enable condition when its popup closes, before the host reuses it.
+struct DirectoryMenuItem {
+    UINT command;
+    CGUIMenuPopupAbstract* popup = nullptr;
+    MENU_ITEM_INFO original{};
+};
+DirectoryMenuItem directoryCommands[] = {{compareDirsCommand}, {findFileCommand}, {dirMenuCommand}};
+
+void RestoreDirectoryCommands(CGUIMenuPopupAbstract* popup)
+{
+    for (auto& item : directoryCommands) {
+        if (item.popup && (!popup || popup == item.popup)) {
+            item.popup->SetItemInfo(item.command, FALSE, &item.original);
+            item.popup = nullptr;
+        }
+    }
+}
+
+HWND sortFrame = nullptr;
+LRESULT CALLBACK SortFrameProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
+{
+    if (msg == WM_COMMAND && !lp && DirectoryCommandUnavailable(LOWORD(wp))) return 0;
+    if (msg == WM_COMMAND && !lp && HandleNativeSortCommand(LOWORD(wp))) return 0;
+    if (msg == WM_USER_INITMENUPOPUP && wp) {
+        const auto result = DefSubclassProc(hwnd, msg, wp, lp);
+        auto* popup = reinterpret_cast<CGUIMenuPopupAbstract*>(wp);
+        for (auto& item : directoryCommands) {
+            if (item.popup || popup->FindItemPosition(item.command) < 0 ||
+                !DirectoryCommandUnavailable(item.command)) continue;
+            item.original.Mask = MENU_MASK_STATE | MENU_MASK_ENABLER;
+            if (!popup->GetItemInfo(item.command, FALSE, &item.original)) continue;
+            auto disabled = item.original;
+            disabled.State |= MENU_STATE_GRAYED;
+            disabled.Enabler = nullptr;
+            if (popup->SetItemInfo(item.command, FALSE, &disabled)) item.popup = popup;
+        }
+        return result;
+    }
+    if (msg == WM_USER_UNINITMENUPOPUP && wp)
+        RestoreDirectoryCommands(reinterpret_cast<CGUIMenuPopupAbstract*>(wp));
+    if (msg == WM_NCDESTROY) {
+        RestoreDirectoryCommands(nullptr);
+        RemoveWindowSubclass(hwnd, SortFrameProc, subclassId);
+        sortFrame = nullptr;
+    }
+    return DefSubclassProc(hwnd, msg, wp, lp);
+}
+
 void Sync()
 {
     HWND frame = gGeneral->GetMainWindowHWND();
+    if (frame != sortFrame) {
+        RestoreDirectoryCommands(nullptr);
+        if (sortFrame) RemoveWindowSubclass(sortFrame, SortFrameProc, subclassId);
+        sortFrame = frame && SetWindowSubclass(frame, SortFrameProc, subclassId, 0) ? frame : nullptr;
+    }
+    if (sortFrame) {
+        ApplyNativeOrder(frame, PANEL_LEFT);
+        ApplyNativeOrder(frame, PANEL_RIGHT);
+    }
     CPluginFSInterfaceAbstract* fs = gGeneral->GetPanelPluginFS(PANEL_SOURCE);
     if (IsResultsFS(fs)) ApplyRankedOrder(frame, fs);
     RestoreResultSelection();
@@ -327,16 +398,19 @@ void Sync()
     const UINT dpi = GetDpiForWindow(list);
     RECT headerRect{};
     GetClientRect(header, &headerRect);
-    const int row = DetailedRowHeight(headerRect.bottom, dpi);
-    if (row != binding.rowHeight) {
-        binding.rowHeight = row;
-        HFONT font = CreateFontW(-MulDiv(row, 3, 4), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+    const int fontHeight = headerRect.bottom - MulDiv(4, dpi, 96);
+    const int row = DetailedRowHeight(fontHeight, dpi);
+    binding.rowHeight = row;
+    if (fontHeight > 0 && fontHeight != binding.fontCellHeight) {
+        // The header measures a full text cell. Positive lfHeight uses that same GDI metric.
+        HFONT font = CreateFontW(fontHeight, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
             DEFAULT_PITCH, L"Segoe UI");
         if (font) {
             SendMessageW(binding.edit, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
             if (binding.font) DeleteObject(binding.font);
             binding.font = font;
+            binding.fontCellHeight = fontHeight;
         }
     }
     binding.minListHeight = headerRect.bottom + row + GetSystemMetricsForDpi(SM_CYHSCROLL, dpi);
@@ -346,6 +420,7 @@ void Sync()
         SetFocus(binding.edit);
     }
     EnterResultsIfReady();
+    if (IsWindowEnabled(frame) && IsWindowVisible(binding.popup)) CheckSearchPrerequisite(frame);
 }
 
 LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
@@ -400,6 +475,12 @@ LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
     if (msg == WM_IME_STARTCOMPOSITION) binding.composing = true;
     if (msg == WM_IME_ENDCOMPOSITION) binding.composing = false;
     const bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    if (msg == WM_KEYDOWN && wp >= VK_F3 && wp <= VK_F6 && control &&
+        !(GetKeyState(VK_SHIFT) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000) && !binding.composing) {
+        if (!(lp & (1L << 30)))
+            PostMessageW(binding.frame, WM_COMMAND, 700 + wp - VK_F3, 0);
+        return 0;
+    }
     if (msg == WM_KEYDOWN && wp == VK_F3 && (GetKeyState(VK_SHIFT) & 0x8000) &&
         !control && !(GetKeyState(VK_MENU) & 0x8000) && !binding.composing &&
         binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs) {
@@ -566,6 +647,7 @@ void ShowEditorForActivePanel()
 
 void ForgetEditorFS(CPluginFSInterfaceAbstract* fs)
 {
+    ForgetNativeOrder(fs);
     if (focusRequest == fs) focusRequest = nullptr;
     if (binding.fs == fs) Unbind();
 }
@@ -573,6 +655,9 @@ void ForgetEditorFS(CPluginFSInterfaceAbstract* fs)
 void ShutdownEditor()
 {
     closing = true;
+    RestoreDirectoryCommands(nullptr);
+    if (sortFrame) RemoveWindowSubclass(sortFrame, SortFrameProc, subclassId);
+    sortFrame = nullptr;
     if (editKeyHook) UnhookWindowsHookEx(editKeyHook);
     editKeyHook = nullptr;
     if (foregroundObserver) UnhookWinEvent(foregroundObserver);

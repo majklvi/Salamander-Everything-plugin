@@ -31,6 +31,7 @@ struct ResultPage {
 bool ListResultPage(const std::shared_ptr<const ResultPage>& page,
                     CSalamanderDirectoryAbstract* directory, CPluginDataInterfaceAbstract*& data,
                     bool panelFilter = false, const std::wstring& filterName = {});
+bool TakeNativeOrderUpdate(CPluginDataInterfaceAbstract* data, unsigned sort);
 bool HasFilteredRanks(CPluginDataInterfaceAbstract* data);
 void SetRankingFilteredRows(bool enabled);
 const ResultPage* GetListingPage(CPluginDataInterfaceAbstract* data);
