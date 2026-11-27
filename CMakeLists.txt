@@ -35,7 +35,7 @@ target_include_directories(EverythingSdkV3 SYSTEM PUBLIC third_party/everything-
 
 add_library(EverythingSearch MODULE src/modern_search.cpp src/plugin.cpp src/filesystem.cpp src/editor.cpp
     src/actions.cpp src/result_listing.cpp src/header_order.cpp
-    src/settings.cpp src/settings.rc src/search.cpp src/sdk-notice.rc src/plugin.def)
+    src/filter_catalog.cpp src/filter_dialog.cpp src/settings.cpp src/settings.rc src/search.cpp src/sdk-notice.rc src/plugin.def)
 target_compile_features(EverythingSearch PRIVATE cxx_std_17)
 target_compile_definitions(EverythingSearch PRIVATE UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN
     EVERYTHING_SEARCH_VERSION="${PROJECT_VERSION}")

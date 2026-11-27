@@ -42,6 +42,13 @@ public:
 
     std::uint64_t Instance() const { return key.instance; }
     const std::wstring& Query() const { return query; }
+    EverythingFilter filter;
+    bool HasSearch() const { return !query.empty() || !filter.name.empty(); }
+    std::wstring EffectiveQuery() const {
+        if (filter.expression.empty()) return query.empty() && !filter.name.empty() ? L"*" : query;
+        if (query.empty()) return filter.expression;
+        return L"<" + query + L"> <" + filter.expression + L">";
+    }
     bool ListingCurrent() const { return listingCurrent; }
     std::uint32_t Sort() const { return key.sort; }
 
@@ -61,7 +68,7 @@ public:
         const auto* property = PropertyForOrder(sort);
         key.sortProperty = property ? property->canonical : L"";
         focusFirstRank = UsesRankedNames(sort);
-        if (!query.empty())
+        if (HasSearch())
             Filter(query, true);
     }
 
@@ -73,7 +80,7 @@ public:
             key.sort = 1;
             key.sortProperty.clear();
         }
-        if (query.empty())
+        if (!HasSearch())
             gGeneral->PostRefreshPanelFS(this);
         else
             Filter(query, true);
@@ -144,26 +151,26 @@ public:
             query = text;
         ++key.generation;
         polling = false;
-        pending = !query.empty();
+        pending = HasSearch();
         page.reset();
         state = SearchState::Ready;
         listingCurrent = false;
         gGeneral->PostRefreshPanelFS(this);
         if (pending)
-            SubmitSearch(key, query);
+            SubmitSearch(key, EffectiveQuery());
         else
             CancelSearch(key.instance);
     }
 
     void Poll() {
-        if (query.empty() || pending || polling) return;
+        if (!HasSearch() || pending || polling) return;
         polling = true;
         ++key.generation;
-        SubmitSearch(key, query);
+        SubmitSearch(key, EffectiveQuery());
     }
 
     void RetryIfNeeded() {
-        if (!query.empty() && !pending && state != SearchState::Ready)
+        if (HasSearch() && !pending && state != SearchState::Ready)
             Filter(query, true);
     }
 
@@ -234,7 +241,10 @@ public:
         // post-refresh merge uses basenames; take the full-path identities
         // before the host installs the new list, including for a manual refresh.
         RememberSelection();
-        if (!ListResultPage(page, listing, data)) {
+        char masks[MAX_GROUPMASK];
+        const int panel = Panel();
+        const bool filtered = panel >= 0 && gGeneral->GetFilterFromPanel(panel, masks, sizeof(masks));
+        if (!ListResultPage(page, listing, data, filtered, filter.name)) {
             listingFailed = true;
             listingCurrent = false;
             return FALSE;
@@ -245,7 +255,7 @@ public:
     }
     BOOL WINAPI GetNoItemsInPanelText(char* buffer, int size) override {
         const char* message = "No matches.";
-        if (query.empty())
+        if (!HasSearch())
             message = "Type an Everything query.";
         else if (pending)
             message = "Searching Everything...";
@@ -488,6 +498,18 @@ void SetQuery(CPluginFSInterfaceAbstract* fs, const std::wstring& text) {
     const auto it = FindInstance(fs);
     if (it != instances.end())
         it->Filter(text);
+}
+
+EverythingFilter GetEverythingFilter(CPluginFSInterfaceAbstract* fs) {
+    const auto it = FindInstance(fs);
+    return it == instances.end() ? EverythingFilter{} : it->filter;
+}
+
+void SetEverythingFilter(CPluginFSInterfaceAbstract* fs, EverythingFilter filter) {
+    const auto it = FindInstance(fs);
+    if (it == instances.end() || (it->filter.name == filter.name && it->filter.expression == filter.expression)) return;
+    it->filter = std::move(filter);
+    it->Filter(it->Query(), true);
 }
 
 void RetryFailedSearch(CPluginFSInterfaceAbstract* fs) {

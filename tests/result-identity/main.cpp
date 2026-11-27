@@ -6,6 +6,7 @@
 namespace {
 TestHost testHost;
 SearchKey submitted{};
+std::wstring submittedText;
 SearchHit opened;
 }
 
@@ -18,7 +19,7 @@ SearchHit opened;
 
 void ForgetEditorFS(CPluginFSInterfaceAbstract*) {}
 void ScheduleEditorSync() {}
-void SubmitSearch(SearchKey key, const std::wstring&) { submitted = key; }
+void SubmitSearch(SearchKey key, const std::wstring& text) { submitted = key; submittedText = text; }
 void CancelSearch(std::uint64_t) {}
 void OpenResult(int, const SearchHit& hit) { opened = hit; }
 
@@ -164,6 +165,14 @@ void RunChecks()
     Check(testHost.caret == 0 && ranked.files.size() == 3 && ranked.dirs.empty() &&
           std::string_view(ranked.files[0].Name) == "001  report.pdf",
           "ranked page starts at the first SDK hit and keeps one group");
+    testHost.panelFilter = true;
+    TestDirectory masked;
+    testHost.Publish(masked);
+    Check((masked.validData & VALID_DATA_EXTENSION) && std::string_view(masked.files[0].Ext) == "pdf" &&
+          std::string_view(masked.files[0].Name) == "report.pdf" && HasFilteredRanks(masked.data),
+          "ranked native filter receives the exact basename and extension");
+    testHost.panelFilter = false;
+    testHost.listing = &ranked;
     provider->ExecuteOnFS(PANEL_LEFT, fs, "everything", 0, ranked.files[1], 0);
     Check(opened.directory && opened.path == oldDirectory.path, "ranked folder keeps its directory action");
 
@@ -186,6 +195,17 @@ void RunChecks()
     DeliverSearchReply({obsolete, SearchState::Ready, {alpha}, 1});
     Check(!IsListingCurrent(fs), "late background reply cannot replace a newly typed query");
 
+    SetQuery(fs, L"alpha | beta");
+    SetEverythingFilter(fs, {L"Documents", L"ext:pdf | ext:txt"});
+    Check(submittedText == L"<alpha | beta> <ext:pdf | ext:txt>" && GetQuery(fs) == L"alpha | beta",
+          "saved filter intersects the complete query and leaves editor text intact");
+    SetQuery(fs, L"");
+    Check(submittedText == L"ext:pdf | ext:txt", "a filter works with an empty query");
+    RefreshSourceSettings();
+    Check(submittedText == L"ext:pdf | ext:txt", "refresh retains the saved filter");
+    SetQuery(fs, L"next");
+    SetEverythingFilter(fs, {});
+    Check(submittedText == L"next", "switching back to native filters restores the typed query");
     provider->CloseFS(fs);
     testHost.active = nullptr;
     testHost.listing = nullptr;
@@ -265,7 +285,7 @@ void CheckMetadata()
     CQuadWord bytes{};
     SYSTEMTIME dateTime{};
     dateTime.wHour = 23;
-    Check(listing.validData == (VALID_DATA_PL_SIZE | VALID_DATA_PL_DATE | VALID_DATA_PL_TIME) &&
+    Check(listing.validData == (VALID_DATA_EXTENSION | VALID_DATA_PL_SIZE | VALID_DATA_PL_DATE | VALID_DATA_PL_TIME) &&
           listing.data->GetByteSize(&file, FALSE, &bytes) && bytes.Value == *full.size &&
           listing.data->GetByteSize(&empty, FALSE, &bytes) && bytes.Value == 0 &&
           !listing.data->GetByteSize(&listing.dirs[0], TRUE, &bytes) &&
@@ -297,7 +317,7 @@ void CheckMetadata()
     TestDirectory minimal;
     testHost.Publish(minimal);
     minimal.data->SetupView(TRUE, &view, nullptr, nullptr);
-    Check(none.metadataColumns == 0 && minimal.validData == 0 && view.columns.size() == 1 &&
+    Check(none.metadataColumns == 0 && minimal.validData == VALID_DATA_EXTENSION && view.columns.size() == 1 &&
           view.columns.front().ID == COLUMN_ID_NAME, "all optional fields can be hidden");
     provider->CloseFS(fs);
     testHost.listing = nullptr;

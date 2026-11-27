@@ -6,6 +6,7 @@ struct Sources {
     HWND stable = nullptr;
     bool modern = false;
     std::wstring modernInstance;
+    std::wstring stableInstance;
     bool UseModern(Source preference) const {
         return preference == Source::Modern15 || (preference == Source::Automatic && !stable && modern);
     }

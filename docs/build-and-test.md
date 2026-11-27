@@ -61,3 +61,25 @@ The following observations are from milestone 1, version 0.1.0. Tests ran on Win
 | F5 and F8 | On the Release build, both keys left the edit focused with the same query and neither opened a host dialog. The separate diagnostic check below verified delivery. |
 
 Two checks used a separate instrumented build of the same plugin in the isolated host. The diagnostic edit received F5 and F8 as `WM_KEYDOWN` values 116 and 119 while it had focus and the popup was active. The frame's command trace recorded zero Copy or Delete commands during that sequence. For selection, a diagnostic key requested a real filesystem refresh through `PostRefreshPanelFS`. Before the refresh the selection spanned offsets 0 through 9 (exclusive). After `ListCurrentPath` completed and control returned to the message loop, both offsets, keyboard focus and popup activation were unchanged. The Release artifact identified above is the uninstrumented build.
+
+## Native panel filter
+
+Ctrl+F12 opens Samandarin's Filter dialog from the query field or the results. The mask applies to the results returned by Everything (up to 200). To restrict the entire index before Everything selects the page, include the condition in the query field (for example, `ext:pdf`). With a panel mask active, the information line reports the visible count against the total returned by Everything.
+
+In Open Samandarin 0.16 x64, a file-only query for the test installation directory returned 47 files. Opening Ctrl+F12 while the query field had focus and applying `*.exe;vcruntime*` left exactly `salamand.exe` and `vcruntime140.dll`. The information line showed **2 of 47**. Clicking **Size** placed the 124,544-byte DLL first in ascending order and the 3,420,160-byte executable first in descending order. Both rows kept their original filenames throughout.
+
+## Ctrl+F12 saved Everything filters
+
+Open Samandarin 0.16 x64 was tested with a running Everything 1.5 instance. Without a user CSV, the dialog listed the built-in filters. A second host used an isolated roaming profile so the test could edit Filters.csv while Samandarin remained open. The dropdown displayed both a saved override of Executable and the custom name `Knihovny, "DLL"` with its definition `ext:dll`. Selecting the custom filter with an empty query returned 200 of 506 matches. Typing `vcruntime` retained the filter and returned 15 matches.
+
+With the same panel open, adding `Pouze debug DLL` to the CSV and reopening Ctrl+F12 from the search field exposed the new entry immediately. Selecting its expression `ext:dll *d.dll` narrowed the existing query to 10 results. Switching to the native **Use filter** option with the exact mask `vcruntime140.dll` showed three files. **Do not use filter** restored all 15 results and preserved the query text. These UI checks covered Everything 1.5 only.
+
+### Everything 1.4 verification
+
+Open Samandarin 0.16 x64 used the portable Everything 1.4.1.1032 instance `dual-plugin-qa` with its four-file index. Samandarin read `%APPDATA%\Everything\Filters.csv` from an isolated test profile. The search field stayed empty throughout the checks.
+
+| Ctrl+F12 check | Observed result |
+| --- | --- |
+| Choose the built-in **Executable** filter. | The panel showed **1 of 1** and listed only `everything.exe`. |
+| Choose the custom **QA files** filter with the expression `ext:lng`. | The panel showed **1 of 1** and listed only `Everything.lng`. |
+| With the panel open, edit the same CSV entry to `ext:ini;db` and reopen Ctrl+F12. | The dropdown retained **QA files** and immediately displayed its new expression. Pressing Enter applied it without reselecting the filter. The panel showed **2 of 2** and listed `Everything-dual-plugin-qa.ini` and `Everything-dual-plugin-qa.db`. |

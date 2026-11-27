@@ -32,11 +32,7 @@ BOOL CALLBACK ThemeControl(HWND control, LPARAM dark)
 
 void UpdateTheme(HWND dialog, BOOL& current)
 {
-    BOOL dark = FALSE;
-    gGeneral->GetConfigParameter(SALCFG_USEWINDOWSDARKMODE, &dark, sizeof(dark), nullptr);
-    HIGHCONTRASTW contrast{sizeof(contrast), 0, nullptr};
-    if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0) &&
-        (contrast.dwFlags & HCF_HIGHCONTRASTON)) dark = FALSE;
+    const BOOL dark = UseHostDarkTheme();
     if (dark == current) return;
     current = dark;
     DwmSetWindowAttribute(dialog, DWMWA_USE_IMMERSIVE_DARK_MODE, &dark, sizeof(dark));

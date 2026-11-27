@@ -16,6 +16,7 @@
 extern CSalamanderGeneralAbstract* gGeneral;
 extern HINSTANCE gInstance;
 
+bool UseHostDarkTheme();
 void ShowSearchSettings(HWND parent);
 void ShowEditorForActivePanel();
 void ScheduleEditorSync();

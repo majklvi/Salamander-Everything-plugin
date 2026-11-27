@@ -148,6 +148,8 @@ const ResultRow* ListingRow(const CFileData* file)
 // for a custom column carrying separateSortKey. Painting uses the base ID.
 constexpr DWORD separateSortKey = 0x20000000;
 constexpr DWORD sortKeyFlag = 0x80000000;
+constexpr DWORD rankColumn = 99;
+bool rankingFilteredRows = false;
 bool collectingHeaderSort = false;
 unsigned observedColumnSort = 0;
 DWORD BaseColumn(DWORD data) { return data & ~(separateSortKey | sortKeyFlag); }
@@ -168,6 +170,10 @@ void WINAPI ColumnText()
     const DWORD raw = *transferColumn;
     if (collectingHeaderSort && (raw & sortKeyFlag)) observedColumnSort = HeaderColumnSort(raw);
     const DWORD column = BaseColumn(raw);
+    if (row && (column == rankColumn || (rankingFilteredRows && (raw & sortKeyFlag)))) {
+        *transferLength = sprintf_s(transferBuffer, TRANSFER_BUFFER_MAX, "%u", row->rank);
+        return;
+    }
     if (row && column >= firstPropertyOrder) {
         const auto it = row->hit.propertyValues.find(column);
         if (it != row->hit.propertyValues.end()) {
@@ -206,6 +212,9 @@ class ListingData final : public CPluginDataInterfaceAbstract {
 public:
     explicit ListingData(std::shared_ptr<const ResultPage> value) : page(std::move(value)) {}
     std::shared_ptr<const ResultPage> page;
+    std::string filterLabel;
+    bool filteredRanks = false;
+    bool filtered = false;
 
     void WINAPI SetupView(BOOL left, CSalamanderViewAbstract* view, const char*, const CFileData*) override {
         if (view->GetViewMode() != VIEW_MODE_DETAILED) return;
@@ -223,6 +232,8 @@ public:
             const auto title = DisplayText(property.title, sizeof(CColumn::Name) - 1);
             InsertResultColumn(view, left, property.order, title.c_str(), false);
         }
+        if (filteredRanks && view->GetColumnsCount() == 1)
+            InsertResultColumn(view, left, rankColumn, "Rank", true);
     }
     void WINAPI ColumnFixedWidthShouldChange(BOOL left, const CColumn* column, int fixed) override {
         auto& widths = columnWidths[left != FALSE];
@@ -234,11 +245,16 @@ public:
         if (column->ID == COLUMN_ID_CUSTOM)
             widths[BaseColumn(column->CustomData)].width = width;
     }
-    BOOL WINAPI GetInfoLineContent(int, const CFileData*, BOOL, int files, int dirs, BOOL,
+    BOOL WINAPI GetInfoLineContent(int panel, const CFileData*, BOOL, int files, int dirs, BOOL,
                                    const CQuadWord&, char* buffer, DWORD*, int& hotCount) override {
         if (!page) return FALSE;
         hotCount = 0;
-        const unsigned shown = static_cast<unsigned>(page->rows.size());
+        unsigned shown = static_cast<unsigned>(page->rows.size());
+        if (filtered && gGeneral->GetPanelPluginData(panel) == this) {
+            shown = 0;
+            int index = 0;
+            while (gGeneral->GetPanelItem(panel, &index, nullptr)) ++shown;
+        }
         std::string order = "Name ascending";
         if (page->sort == EVERYTHING_SORT_NAME_DESCENDING) order = "Name descending";
         for (const auto& column : metadataColumns) {
@@ -254,6 +270,7 @@ public:
         }
         if (page->sort == mostOpenedSort) order = "most opened first";
         if (page->sort == leastOpenedSort) order = "least opened first";
+        if (!filterLabel.empty()) order += " | Filter: " + filterLabel;
         if (files || dirs)
             sprintf_s(buffer, 1000, "%u of %u results | %d selected | Everything page by %s",
                       shown, page->total, files + dirs, order.c_str());
@@ -307,6 +324,16 @@ public:
 };
 }
 
+bool HasFilteredRanks(CPluginDataInterfaceAbstract* data)
+{
+    return data && static_cast<ListingData*>(data)->filteredRanks;
+}
+
+void SetRankingFilteredRows(bool enabled)
+{
+    rankingFilteredRows = enabled;
+}
+
 void BeginHeaderSortObservation()
 {
     collectingHeaderSort = true;
@@ -336,7 +363,8 @@ ResultPage::ResultPage(SearchReply&& reply) : total(reply.total), sort(reply.key
         auto name = prefix + DisplayText(hit.name, MAX_PATH - 5 - prefix.size());
         if (UsesRankedNames(sort) && hit.directory) name += "\\";
         auto parent = DisplayText(ParentOf(hit), TRANSFER_BUFFER_MAX - 1);
-        ResultRow row{std::move(hit), std::move(name), std::move(parent)};
+        ResultRow row{std::move(hit), std::move(name), std::move(parent),
+                      static_cast<unsigned>(reply.key.offset + rows.size() + 1)};
         rows.push_back(std::move(row));
     }
 }
@@ -360,14 +388,15 @@ void ReleaseResultListing(CPluginDataInterfaceAbstract* data)
 }
 
 bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDirectoryAbstract* directory,
-                    CPluginDataInterfaceAbstract*& data)
+                    CPluginDataInterfaceAbstract*& data, bool panelFilter, const std::wstring& filterName)
 {
     data = nullptr;
     auto listing = std::unique_ptr<ListingData>(new (std::nothrow) ListingData(page));
     if (!listing) return false;
-    // All filename characters belong to Name. This also leaves a single sort
-    // target in the Name header instead of a separate or embedded Ext target.
-    DWORD valid = 0;
+    listing->filterLabel = DisplayText(filterName, 160);
+    listing->filtered = panelFilter;
+    listing->filteredRanks = panelFilter && page && UsesRankedNames(page->sort);
+    DWORD valid = VALID_DATA_EXTENSION;
     if (page) {
         for (const auto& row : page->rows) {
             if (row.hit.size) valid |= VALID_DATA_PL_SIZE;
@@ -378,10 +407,15 @@ bool ListResultPage(const std::shared_ptr<const ResultPage>& page, CSalamanderDi
     if (page) {
         for (const auto& item : page->rows) {
             CFileData row{};
-            row.Name = gGeneral->DupStr(item.displayName.c_str());
+            // Ctrl+F12 compares the native Name and Ext. Keep rank decorations
+            // out of both fields while a panel mask is active.
+            const auto& name = listing->filteredRanks ? DisplayText(item.hit.name, MAX_PATH - 5)
+                                                     : item.displayName;
+            row.Name = gGeneral->DupStr(name.c_str());
             if (!row.Name) { directory->Clear(listing.get()); return false; }
-            row.NameLen = static_cast<unsigned>(item.displayName.size());
-            row.Ext = row.Name + row.NameLen;
+            row.NameLen = static_cast<unsigned>(name.size());
+            char* dot = std::strrchr(row.Name, '.');
+            row.Ext = dot ? dot + 1 : row.Name + row.NameLen;
             // Samandarin filters its native rows by hidden/system attributes.
             // Keep indexed attributes in the display column so enabling it
             // preserves the membership of the Everything result page.

@@ -13,6 +13,7 @@ struct ResultRow {
     SearchHit hit;
     std::string displayName;
     std::string displayParent;
+    unsigned rank;
 };
 
 struct ResultPage {
@@ -26,6 +27,9 @@ struct ResultPage {
 // The host can use the previous listing until its refresh finishes. Each
 // listing keeps its backing page alive independently of the live FS.
 bool ListResultPage(const std::shared_ptr<const ResultPage>& page,
-                    CSalamanderDirectoryAbstract* directory, CPluginDataInterfaceAbstract*& data);
+                    CSalamanderDirectoryAbstract* directory, CPluginDataInterfaceAbstract*& data,
+                    bool panelFilter = false, const std::wstring& filterName = {});
+bool HasFilteredRanks(CPluginDataInterfaceAbstract* data);
+void SetRankingFilteredRows(bool enabled);
 const ResultPage* GetListingPage(CPluginDataInterfaceAbstract* data);
 const SearchHit* FindResultHit(const ResultPage* page, const CFileData* file);

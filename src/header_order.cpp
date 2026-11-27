@@ -109,6 +109,15 @@ void ApplyRankedOrder(HWND frame, CPluginFSInterfaceAbstract* fs)
         if (gGeneral->GetPanelPluginFS(PANEL_SOURCE) != fs) return;
         const auto rows = VisibleFileOrder();
         if (std::is_sorted(rows.begin(), rows.end())) return;
-        SendMessageW(frame, WM_COMMAND, 700, 0); // Open Samandarin 0.16 CM_ACTIVENAME
+        if (HasFilteredRanks(gGeneral->GetPanelPluginData(PANEL_SOURCE))) {
+            // 0.16 sends these commands to the first visible sortable custom
+            // column. Supply its private numeric sort key only for this sort.
+            const UINT command = gGeneral->GetSourcePanel() == PANEL_LEFT ? 2860 : 2892;
+            SetRankingFilteredRows(true);
+            SendMessageW(frame, WM_COMMAND, command, 0);
+            SetRankingFilteredRows(false);
+        } else {
+            SendMessageW(frame, WM_COMMAND, 700, 0); // CM_ACTIVENAME
+        }
     }
 }

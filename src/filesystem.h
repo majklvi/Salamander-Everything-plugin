@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include "filter_catalog.h"
 
 class CPluginFSInterfaceAbstract;
 class CPluginInterfaceForFSAbstract;
@@ -17,6 +18,8 @@ bool IsResultsFS(CPluginFSInterfaceAbstract* fs);
 bool IsListingCurrent(CPluginFSInterfaceAbstract* fs);
 const std::wstring& GetQuery(CPluginFSInterfaceAbstract* fs);
 void SetQuery(CPluginFSInterfaceAbstract* fs, const std::wstring& text);
+EverythingFilter GetEverythingFilter(CPluginFSInterfaceAbstract* fs);
+void SetEverythingFilter(CPluginFSInterfaceAbstract* fs, EverythingFilter filter);
 void RetryFailedSearch(CPluginFSInterfaceAbstract* fs);
 std::uint32_t GetResultSort(CPluginFSInterfaceAbstract* fs);
 void SetResultSort(CPluginFSInterfaceAbstract* fs, std::uint32_t sort);

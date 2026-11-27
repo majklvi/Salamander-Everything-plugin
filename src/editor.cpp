@@ -3,6 +3,7 @@
 #include "header_order.h"
 #include "actions.h"
 #include "search.h"
+#include "filter_dialog.h"
 
 #include <algorithm>
 #include <cwchar>
@@ -20,6 +21,7 @@ constexpr wchar_t editorClass[] = L"Majklvi.EverythingSearch.Editor";
 constexpr int filesControlId = 950;
 // Stock 0.16 resource.rh2: the command used by its own Alt+Left accelerator.
 constexpr UINT activeBackCommand = 832;
+constexpr UINT changeFilterCommand = 779; // CM_CHANGEFILTER
 constexpr UINT syncMessage = WM_APP + 1;
 constexpr UINT_PTR pointerTimer = 1;
 constexpr UINT_PTR subclassId = 1;
@@ -339,6 +341,9 @@ void Sync()
 
 LRESULT CALLBACK HostProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, DWORD_PTR)
 {
+    if (hwnd == binding.frame && msg == WM_COMMAND && LOWORD(wp) == changeFilterCommand &&
+        binding.fs && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs)
+        return ShowResultFilter(hwnd, wp, lp, binding.fs);
     if (hwnd == binding.list && msg == editFocusedResult) {
         SearchHit hit;
         if (gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs &&
@@ -377,14 +382,16 @@ LRESULT CALLBACK EditProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp, UINT_PTR, D
     if (msg == WM_KILLFOCUS) binding.enterWhenListed = false;
     if (msg == WM_IME_STARTCOMPOSITION) binding.composing = true;
     if (msg == WM_IME_ENDCOMPOSITION) binding.composing = false;
-    if (msg == WM_SYSKEYDOWN && wp == VK_LEFT && (lp & (1L << 29)) &&
-        !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_SHIFT) & 0x8000) &&
+    const bool control = (GetKeyState(VK_CONTROL) & 0x8000) != 0;
+    const bool back = msg == WM_SYSKEYDOWN && wp == VK_LEFT && (lp & (1L << 29)) && !control;
+    const bool filter = msg == WM_KEYDOWN && wp == VK_F12 && control && !(GetKeyState(VK_MENU) & 0x8000);
+    if ((back || filter) && !(GetKeyState(VK_SHIFT) & 0x8000) &&
         !binding.composing && binding.frame && gGeneral->GetPanelPluginFS(PANEL_SOURCE) == binding.fs) {
         if (!(lp & (1L << 30))) {
             binding.enterWhenListed = false;
             SetActiveWindow(binding.frame);
             SetFocus(binding.list);
-            PostMessageW(binding.frame, WM_COMMAND, MAKEWPARAM(activeBackCommand, 1), 0);
+            PostMessageW(binding.frame, WM_COMMAND, MAKEWPARAM(filter ? changeFilterCommand : activeBackCommand, 1), 0);
         }
         return 0;
     }

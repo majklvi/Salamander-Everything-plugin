@@ -6,6 +6,10 @@ Enable **Parent folder** to distinguish identical names. Press **Enter** on a re
 
 Use **F3** to view a result and **F4** to edit it. **F5** copies, **F6** moves and **F8/Del** deletes the marked items. Right-click a result for its menu. These operations preserve the Everything run count. [File operations and verification](docs/result-metadata.md#file-operations-in-search-results)
 
+Press **Ctrl+F12** in an Everything panel and select **Use Everything Filter** to choose a saved filter by name and expression. Everything combines it with the text in the search field before applying the result limit. The filter stays active as you type. **Use filter** applies a Samandarin filename mask to the returned rows. **Do not use filter** clears either choice.
+
+The plugin loads the built-in filters and reads `%APPDATA%\Everything\Filters.csv` at startup and whenever the dialog opens. For a named Everything instance, it checks `Filters-<instance>.csv` first. A saved filter with the same name overrides the built-in definition.
+
 ## Development
 
 Each search tab keeps its query when the tab or the whole right panel moves into a separate window. Queries use SDK v2 for Everything 1.4 and SDK 3 for Everything 1.5. **Settings → Everything source** selects the version. Automatic prefers a running 1.4 instance. Version 1.5 also supplies a searchable list of additional display properties and a dynamic sort menu. Milestone 4 covers full-path actions, selection across refreshes and ordering queries larger than one page. [Development plan](docs/development-plan.md) · [Detached-window tests](docs/milestone-2.md) · [Live query tests](docs/milestone-3.md)

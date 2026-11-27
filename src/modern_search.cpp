@@ -54,7 +54,10 @@ BOOL CALLBACK FindEndpoint(HWND hwnd, LPARAM data)
         !SendMessageTimeoutW(hwnd, EVERYTHING_WM_IPC, EVERYTHING_IPC_GET_MINOR_VERSION, 0,
                              SMTO_ABORTIFHUNG | SMTO_ERRORONEXIT, 300, &minor)) return TRUE;
     auto& sources = *reinterpret_cast<Sources*>(data);
-    if (minor == 4 && (!sources.stable || instance.empty())) sources.stable = hwnd;
+    if (minor == 4 && (!sources.stable || instance.empty())) {
+        sources.stable = hwnd;
+        sources.stableInstance = instance;
+    }
     if (minor == 5 && (!sources.modern || instance.empty())) {
         sources.modern = true;
         sources.modernInstance = std::move(instance);

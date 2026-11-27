@@ -131,6 +131,8 @@ struct TestHost {
     }
 
     void PostRefreshPanelFS(CPluginFSInterfaceAbstract*) {}
+    bool panelFilter = false;
+    BOOL GetFilterFromPanel(int, char*, int) { return panelFilter; }
     int sizeMode = 0;
     BOOL GetConfigParameter(int id, void* dest, int, int*) {
         if (id != SALCFG_SIZEFORMAT) return FALSE;

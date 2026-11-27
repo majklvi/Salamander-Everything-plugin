@@ -8,6 +8,16 @@ int SalamanderVersion = 0;
 HINSTANCE gInstance = nullptr;
 CSalamanderGeneralAbstract* gGeneral = nullptr;
 
+bool UseHostDarkTheme()
+{
+    BOOL dark = FALSE;
+    gGeneral->GetConfigParameter(SALCFG_USEWINDOWSDARKMODE, &dark, sizeof(dark), nullptr);
+    HIGHCONTRASTW contrast{sizeof(contrast), 0, nullptr};
+    if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(contrast), &contrast, 0) &&
+        (contrast.dwFlags & HCF_HIGHCONTRASTON)) dark = FALSE;
+    return dark != FALSE;
+}
+
 namespace {
 
 constexpr int openSearch = 1;
@@ -158,6 +168,7 @@ extern "C" CPluginInterfaceAbstract* WINAPI SalamanderPluginEntry(CSalamanderPlu
     }
     gGeneral = host->GetSalamanderGeneral();
     gGeneral->GetPluginFSName(fsName, 0);
+    RefreshFilterCatalog();
     static SearchPlugin plugin;
     return &plugin;
 }
