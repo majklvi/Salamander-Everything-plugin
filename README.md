@@ -1,12 +1,20 @@
 # Everything search in an Open Samandarin panel
 
-Feasibility study, 27 November 2026. The proposed interaction is one editable line at the top of a file panel. As the user types, the rows below it change to the matching files and folders from the local Everything index.
+Everything Search 0.4.2 is a native x64 plugin for Open Samandarin. Type an Everything expression above the panel's column headings to see up to 200 matches from the running default instance. Detailed view shows **Name** and **Date modified** by default. Use **Plugins → Everything Search → Settings…** to show additional information from the index, including creation and access times, file attributes and extensions. [Build and install](docs/build-and-test.md) · [Available columns and verification](docs/result-metadata.md)
+
+Enable **Parent folder** to distinguish identical names. Press **Enter** on a result to open it, or use **Open containing folder** to select it in a disk panel. [File action and sort tests](docs/milestone-4.md)
+
+Use **F3** to view a result and **F4** to edit it. **F5** copies, **F6** moves and **F8/Del** deletes the marked items. Right-click a result for its menu. These operations preserve the Everything run count. [File operations and verification](docs/result-metadata.md#file-operations-in-search-results)
+
+## Development
+
+Each search tab keeps its query when the tab or the whole right panel moves into a separate window. Queries use the Unicode Everything SDK v2. Milestone 4 covers full-path actions, selection across refreshes and ordering queries larger than one page. [Development plan](docs/development-plan.md) · [Detached-window tests](docs/milestone-2.md) · [Live query tests](docs/milestone-3.md)
 
 ## Recommendation
 
 **For a fixed search field and clickable column headings, the most direct plugin-only design is to move the entire results list down one row.** The field would sit in the freed space above the native header. Scrolling would leave it in place, and a single match would remain visible below the header. To survive resizing, the plugin would have to reapply the offset whenever Samandarin lays out the panel. This depends on the host's private window layout. [List placement, scrolling, resizing and sorting](docs/panel-overlay.md#moving-the-list-down) · [Keyboard and focus](docs/panel-overlay.md#typing-and-focus)
 
-Prefer an **activatable modeless popup** for the editor in that strip. An edit embedded in the panel leaves Samandarin's file shortcuts active during typing. With the popup active, the host can skip those shortcuts, and its native header should still sort on the first complete click. On the normal header path the user can then continue typing the query. This prediction still needs a runtime check in the main and detached frames. [Editor comparison and first-click behavior](docs/panel-overlay.md#child-control-or-popup)
+The plugin uses an **activatable modeless popup** for the editor in that strip. In Open Samandarin 0.16 x64, one click on Name reversed the invoice rows and the next keystroke continued the query. The same interaction worked in the main frame, an individually torn-off tab and the detached right panel. [Main-frame observations](docs/build-and-test.md#observations-in-the-016-host) · [Detached-window observations](docs/milestone-2.md) · [Editor comparison](docs/panel-overlay.md#child-control-or-popup)
 
 | Approach | Where the user types | What appears in the panel | When to choose it |
 | --- | --- | --- | --- |
@@ -18,6 +26,6 @@ Prefer an **activatable modeless popup** for the editor in that strip. An edit e
 
 **A native filesystem plugin can handle searching, opening a match and showing its containing folder with either editor design.** It could also implement F5/F6 itself. To reuse Samandarin's disk-panel handling of selection, copy/move and shell actions, the host would need to accept external results by full path. Branch View provides a model for that work. I found no public API that imports an Everything result set into it. [Panel and file-operation details](docs/samandarin-integration.md#what-branch-view-already-solves)
 
-The proposed default searches the user's full Everything index across folders and drives. This is a design assumption. Everything SDK v2 is the recommended first backend for compatibility with full Everything 1.4.1 and compatible 1.5 installations. A query can run and return a bounded set of matches while the user continues typing. [Everything integration and verification scenarios](docs/everything-integration.md)
+The default search covers the folders and drives indexed by Everything. The worker sends a bounded Unicode query while the user continues typing. The runtime test used the SDK v2 interface of Everything 1.5.0.1424b. [Everything integration](docs/everything-integration.md) · [Live test environment](docs/milestone-3.md)
 
-The review covers the released Samandarin 0.16 and source on the 0.17 branch at commit `37e9544`. Conclusions come from source and API documentation. End-to-end keyboard behavior and latency still need measurement in a future prototype. [0.16 release](https://github.com/KRtkovo-eu-AI/salamander/releases/tag/5.0-samandarin-0.16) · [Reviewed 0.17 revision](https://github.com/KRtkovo-eu-AI/salamander/commit/37e954410f65d2aa3009028cccd9e99c8505efbc)
+The source review covers the released Samandarin 0.16 and the 0.17 branch at commit `37e9544`. Runtime observations apply to the host and builds identified in each test report. [0.16 release](https://github.com/KRtkovo-eu-AI/salamander/releases/tag/5.0-samandarin-0.16) · [Reviewed 0.17 revision](https://github.com/KRtkovo-eu-AI/salamander/commit/37e954410f65d2aa3009028cccd9e99c8505efbc)
